@@ -22,6 +22,9 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // 在 CI/CD 环境中使用 debug keystore 签名（仅用于测试）
+            // 生产环境应该配置正式的签名密钥
+            signingConfig signingConfigs.debug
         }
     }
     compileOptions {
