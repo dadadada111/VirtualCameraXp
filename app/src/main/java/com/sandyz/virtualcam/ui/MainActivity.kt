@@ -203,15 +203,44 @@ class MainActivity : AppCompatActivity() {
             val dirPath = if (pkg.isEmpty()) publicDir else "$publicDir$pkg/"
             val dir = File(dirPath)
             if (!dir.exists()) {
-                dir.mkdirs()
+                val created = dir.mkdirs()
+                Log.d(TAG, "saveConfig: 创建目录 $dirPath, 结果=$created")
+                LogFileManager.writeToFile(TAG, "saveConfig: 创建目录 $dirPath, 结果=$created")
             }
             val file = File(dirPath + fileName)
+            
             // 使用UTF-8编码保存，确保与读取一致
+            val contentBytes = content.toByteArray(Charsets.UTF_8)
             val fos = FileOutputStream(file)
-            fos.write(content.toByteArray(Charsets.UTF_8))
+            fos.write(contentBytes)
+            fos.flush()
             fos.close()
-            updateStatus("保存成功: ${file.absolutePath}")
+            
+            // 验证文件是否保存成功
+            if (file.exists() && file.length() > 0) {
+                // 读取验证
+                val reader = BufferedReader(InputStreamReader(file.inputStream(), StandardCharsets.UTF_8))
+                val savedContent = reader.readLine()?.trim() ?: ""
+                reader.close()
+                
+                Log.d(TAG, "saveConfig: 保存成功 - 文件路径=${file.absolutePath}, 文件大小=${file.length()}, 保存内容='$content', 读取验证='$savedContent'")
+                LogFileManager.writeToFile(TAG, "saveConfig: 保存成功 - 文件路径=${file.absolutePath}, 文件大小=${file.length()}, 保存内容='$content', 读取验证='$savedContent'")
+                
+                if (savedContent == content) {
+                    updateStatus("保存成功: ${file.absolutePath}")
+                } else {
+                    Log.e(TAG, "saveConfig: 保存验证失败 - 保存内容与读取内容不一致")
+                    LogFileManager.writeToFile(TAG, "saveConfig: 保存验证失败 - 保存内容='$content', 读取内容='$savedContent'")
+                    updateStatus("保存成功但验证失败: ${file.absolutePath}")
+                }
+            } else {
+                Log.e(TAG, "saveConfig: 文件保存失败 - 文件不存在或大小为0")
+                LogFileManager.writeToFile(TAG, "saveConfig: 文件保存失败 - 文件不存在或大小为0")
+                updateStatus("保存失败: 文件未创建")
+            }
         } catch (e: Exception) {
+            Log.e(TAG, "saveConfig: 异常", e)
+            LogFileManager.writeException(TAG, e)
             e.printStackTrace()
             updateStatus("保存失败: ${e.message}")
         }
@@ -318,8 +347,13 @@ class MainActivity : AppCompatActivity() {
             }
             
             // Find the most recently modified app directory
+            // 排除系统目录和logs目录
             val appDirs = publicDirFile.listFiles { file ->
-                file.isDirectory && file.name != "." && file.name != ".."
+                file.isDirectory && 
+                file.name != "." && 
+                file.name != ".." && 
+                file.name != "logs" &&
+                !file.name.startsWith(".")
             } ?: return
             
             if (appDirs.isEmpty()) {

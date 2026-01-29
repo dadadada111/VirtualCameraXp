@@ -35,18 +35,20 @@ object PlayIjk {
         val pkgName = HookUtils.app?.packageName ?: ""
         val publicDir = "/sdcard/DCIM/XVirtualCamera/"
         
+        xLog("PlayIjk.play: 开始查找配置，包名='$pkgName', publicDir='$publicDir'")
+        
         // 1. Check public specific config
         var filePath = "$publicDir$pkgName/stream.txt"
         xLog("检查配置文件路径1: $filePath")
         var urlStr = readConfig(filePath)
-        xLog("读取结果1: urlStr='$urlStr', isBlank=${urlStr.isBlank()}")
+        xLog("读取结果1: urlStr='$urlStr', isBlank=${urlStr.isBlank()}, length=${urlStr.length}")
         
         // 2. Check public global config
         if (urlStr.isBlank()) {
             filePath = "${publicDir}stream.txt"
             xLog("检查配置文件路径2: $filePath")
             urlStr = readConfig(filePath)
-            xLog("读取结果2: urlStr='$urlStr', isBlank=${urlStr.isBlank()}")
+            xLog("读取结果2: urlStr='$urlStr', isBlank=${urlStr.isBlank()}, length=${urlStr.length}")
         }
 
         // 3. Fallback to original cache config
@@ -54,7 +56,24 @@ object PlayIjk {
              filePath = HookUtils.app?.externalCacheDir?.path?.toString() + "/stream.txt"
              xLog("检查配置文件路径3: $filePath")
              urlStr = readConfig(filePath)
-             xLog("读取结果3: urlStr='$urlStr', isBlank=${urlStr.isBlank()}")
+             xLog("读取结果3: urlStr='$urlStr', isBlank=${urlStr.isBlank()}, length=${urlStr.length}")
+        }
+        
+        // 额外检查：列出所有可能的配置文件
+        xLog("PlayIjk.play: 检查目录内容 - publicDir存在=${File(publicDir).exists()}")
+        if (File(publicDir).exists()) {
+            val publicDirFile = File(publicDir)
+            val files = publicDirFile.listFiles()
+            xLog("PlayIjk.play: publicDir下的文件和目录: ${files?.map { it.name }?.joinToString(", ") ?: "null"}")
+            
+            // 检查特定应用目录
+            val appConfigDir = File("$publicDir$pkgName")
+            if (appConfigDir.exists()) {
+                val appFiles = appConfigDir.listFiles()
+                xLog("PlayIjk.play: 应用配置目录 $pkgName 下的文件: ${appFiles?.map { "${it.name}(${it.length()} bytes)" }?.joinToString(", ") ?: "null"}")
+            } else {
+                xLog("PlayIjk.play: 应用配置目录 $pkgName 不存在")
+            }
         }
 
         if (urlStr.isBlank()) {
@@ -100,15 +119,25 @@ object PlayIjk {
     private fun readConfig(path: String): String {
         try {
             val file = File(path)
-            xLog("readConfig: 检查文件 $path, exists=${file.exists()}, canRead=${file.canRead()}, length=${if(file.exists()) file.length() else 0}")
-            if (file.exists() && file.canRead() && file.length() > 0) {
+            val exists = file.exists()
+            val canRead = if (exists) file.canRead() else false
+            val length = if (exists) file.length() else 0L
+            val absolutePath = file.absolutePath
+            
+            xLog("readConfig: 检查文件 $path")
+            xLog("readConfig: 绝对路径=$absolutePath, exists=$exists, canRead=$canRead, length=$length")
+            
+            if (exists && canRead && length > 0) {
                 // 使用UTF-8编码读取，避免编码问题
                 val reader = BufferedReader(InputStreamReader(file.inputStream(), StandardCharsets.UTF_8))
                 // 读取所有行，然后合并（去除每行的空白）
                 val lines = mutableListOf<String>()
                 var line: String?
+                var lineNumber = 0
                 while (reader.readLine().also { line = it } != null) {
+                    lineNumber++
                     val trimmed = line!!.trim().removePrefix("\uFEFF")
+                    xLog("readConfig: 读取第${lineNumber}行: 原始='$line', 修剪后='$trimmed'")
                     if (trimmed.isNotEmpty()) {
                         lines.add(trimmed)
                     }
@@ -117,7 +146,7 @@ object PlayIjk {
                 
                 // 取第一行非空内容作为URL
                 val urlStr = lines.firstOrNull() ?: ""
-                xLog("readConfig: 读取内容行数=${lines.size}, URL='$urlStr', 长度=${urlStr.length}")
+                xLog("readConfig: 读取内容行数=${lines.size}, 有效行数=${lines.size}, URL='$urlStr', 长度=${urlStr.length}")
                 
                 // 验证URL格式（简单检查是否包含协议）
                 if (urlStr.isNotEmpty()) {
@@ -126,21 +155,28 @@ object PlayIjk {
                     if (lowerUrl.startsWith("http://") || lowerUrl.startsWith("https://") || 
                         lowerUrl.startsWith("rtmp://") || lowerUrl.startsWith("rtsp://") ||
                         lowerUrl.startsWith("rtp://") || lowerUrl.startsWith("udp://")) {
-                        xLog("readConfig: 检测到有效的网络URL")
+                        xLog("readConfig: 检测到有效的网络URL: $urlStr")
                         return urlStr
                     } else {
-                        xLog("readConfig: URL格式可能无效: $urlStr")
+                        xLog("readConfig: URL格式可能无效，但返回尝试: $urlStr")
                         // 即使格式可能无效，也返回，让播放器尝试
                         return urlStr
                     }
                 } else {
-                    xLog("readConfig: 文件内容为空或只有空白字符")
+                    xLog("readConfig: 文件内容为空或只有空白字符，文件大小=$length")
                 }
             } else {
-                xLog("readConfig: 文件不存在、不可读或文件大小为0 $path")
+                if (!exists) {
+                    xLog("readConfig: 文件不存在: $absolutePath")
+                } else if (!canRead) {
+                    xLog("readConfig: 文件不可读: $absolutePath")
+                } else if (length == 0L) {
+                    xLog("readConfig: 文件大小为0: $absolutePath")
+                }
             }
         } catch (e: Exception) {
             xLog("readConfig: 读取文件异常 $path, 错误: ${e.message}")
+            xLog("readConfig: 异常堆栈: ${e.stackTraceToString()}")
             e.printStackTrace()
         }
         return ""
