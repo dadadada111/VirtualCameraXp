@@ -46,51 +46,51 @@ object PlayIjk {
         val pkgName = HookUtils.app?.packageName ?: ""
         val publicDir = "/sdcard/DCIM/XVirtualCamera/"
         
-        LogFileManager.writeToFile("PlayIjk", "开始查找配置，包名='$pkgName', publicDir='$publicDir'")
+        LogFileManager.writeToFile("PlayIjk", "=== PlayIjk.play 开始查找配置 ===")
+        LogFileManager.writeToFile("PlayIjk", "包名='$pkgName', publicDir='$publicDir'")
         xLog("PlayIjk.play: 开始查找配置，包名='$pkgName', publicDir='$publicDir'")
         
         var urlStr = ""
         
-        // 根据readme.md文档，原始设计优先使用 externalCacheDir 路径
-        // 1. Check original cache config (符合readme.md文档的原始设计)
-        val cacheDirPath = HookUtils.app?.externalCacheDir?.path?.toString()
-        if (!cacheDirPath.isNullOrEmpty()) {
-            var filePath = "$cacheDirPath/stream.txt"
-            LogFileManager.writeToFile("PlayIjk", "=== 开始检查配置（按readme.md原始设计） ===")
-            LogFileManager.writeToFile("PlayIjk", "包名: $pkgName")
-            LogFileManager.writeToFile("PlayIjk", "检查配置文件路径1（externalCacheDir）: $filePath")
-            xLog("检查配置文件路径1（externalCacheDir）: $filePath")
-            
-            val configFile = File(filePath)
-            LogFileManager.writeToFile("PlayIjk", "文件存在性检查: exists=${configFile.exists()}, canRead=${configFile.canRead()}, length=${if(configFile.exists()) configFile.length() else 0}")
-            
-            urlStr = readConfig(filePath)
-            LogFileManager.writeToFile("PlayIjk", "读取结果1: urlStr='$urlStr', isBlank=${urlStr.isBlank()}, isEmpty=${urlStr.isEmpty()}, length=${urlStr.length}")
-            xLog("读取结果1: urlStr='$urlStr', isBlank=${urlStr.isBlank()}, length=${urlStr.length}")
-        }
+        // 由于Android 10+权限限制，无法直接写入其他应用的externalCacheDir
+        // 所以优先检查 publicDir（实际保存的位置），然后检查 externalCacheDir（用户手动创建的情况）
+        // 1. Check public specific config (实际保存的位置，优先检查)
+        var filePath = "$publicDir$pkgName/stream.txt"
+        LogFileManager.writeToFile("PlayIjk", "检查配置文件路径1（publicDir特定应用，优先）: $filePath")
+        xLog("检查配置文件路径1（publicDir特定应用，优先）: $filePath")
         
-        // 2. Check public specific config (新增的路径，作为备用)
+        val configFile1 = File(filePath)
+        LogFileManager.writeToFile("PlayIjk", "文件存在性检查: exists=${configFile1.exists()}, canRead=${configFile1.canRead()}, length=${if(configFile1.exists()) configFile1.length() else 0}")
+        
+        urlStr = readConfig(filePath)
+        LogFileManager.writeToFile("PlayIjk", "读取结果1: urlStr='$urlStr', isBlank=${urlStr.isBlank()}, isEmpty=${urlStr.isEmpty()}, length=${urlStr.length}")
+        xLog("读取结果1: urlStr='$urlStr', isBlank=${urlStr.isBlank()}, length=${urlStr.length}")
+        
+        // 2. Check public global config (全局配置)
         if (urlStr.isBlank()) {
-            var filePath = "$publicDir$pkgName/stream.txt"
-            LogFileManager.writeToFile("PlayIjk", "检查配置文件路径2（publicDir特定应用）: $filePath")
-            xLog("检查配置文件路径2（publicDir特定应用）: $filePath")
-            
-            val configFile = File(filePath)
-            LogFileManager.writeToFile("PlayIjk", "文件存在性检查: exists=${configFile.exists()}, canRead=${configFile.canRead()}, length=${if(configFile.exists()) configFile.length() else 0}")
-            
+            filePath = "${publicDir}stream.txt"
+            LogFileManager.writeToFile("PlayIjk", "检查配置文件路径2（publicDir全局）: $filePath")
+            xLog("检查配置文件路径2（publicDir全局）: $filePath")
             urlStr = readConfig(filePath)
             LogFileManager.writeToFile("PlayIjk", "读取结果2: urlStr='$urlStr', isBlank=${urlStr.isBlank()}, length=${urlStr.length}")
             xLog("读取结果2: urlStr='$urlStr', isBlank=${urlStr.isBlank()}, length=${urlStr.length}")
         }
         
-        // 3. Check public global config (新增的路径，作为备用)
+        // 3. Check original cache config (符合readme.md文档的原始设计，用户手动创建的情况)
         if (urlStr.isBlank()) {
-            var filePath = "${publicDir}stream.txt"
-            LogFileManager.writeToFile("PlayIjk", "检查配置文件路径3（publicDir全局）: $filePath")
-            xLog("检查配置文件路径3（publicDir全局）: $filePath")
-            urlStr = readConfig(filePath)
-            LogFileManager.writeToFile("PlayIjk", "读取结果3: urlStr='$urlStr', isBlank=${urlStr.isBlank()}, length=${urlStr.length}")
-            xLog("读取结果3: urlStr='$urlStr', isBlank=${urlStr.isBlank()}, length=${urlStr.length}")
+            val cacheDirPath = HookUtils.app?.externalCacheDir?.path?.toString()
+            if (!cacheDirPath.isNullOrEmpty()) {
+                filePath = "$cacheDirPath/stream.txt"
+                LogFileManager.writeToFile("PlayIjk", "检查配置文件路径3（externalCacheDir，readme.md原始设计）: $filePath")
+                xLog("检查配置文件路径3（externalCacheDir，readme.md原始设计）: $filePath")
+                
+                val configFile3 = File(filePath)
+                LogFileManager.writeToFile("PlayIjk", "文件存在性检查: exists=${configFile3.exists()}, canRead=${configFile3.canRead()}, length=${if(configFile3.exists()) configFile3.length() else 0}")
+                
+                urlStr = readConfig(filePath)
+                LogFileManager.writeToFile("PlayIjk", "读取结果3: urlStr='$urlStr', isBlank=${urlStr.isBlank()}, length=${urlStr.length}")
+                xLog("读取结果3: urlStr='$urlStr', isBlank=${urlStr.isBlank()}, length=${urlStr.length}")
+            }
         }
         
         // 额外检查：列出所有可能的配置文件

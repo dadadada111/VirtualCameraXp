@@ -183,8 +183,17 @@ class MainActivity : AppCompatActivity() {
         LogFileManager.writeToFile(TAG, "saveAppConfig: pkg='$pkg', url='$url', selectedAppUri=$selectedAppUri")
         
         if (url.isNotEmpty()) {
-            // 根据readme.md文档，原始设计使用 externalCacheDir 路径
-            // 同时保存到两个位置：1. externalCacheDir（原始设计，优先） 2. publicDir（备用）
+            // 由于Android 10+权限限制，无法直接写入其他应用的externalCacheDir
+            // 所以主要保存到 publicDir（实际可用的路径）
+            // 同时尝试保存到 externalCacheDir（如果权限允许）
+            
+            // 主要保存到 publicDir（实际可用的路径）
+            saveConfig(pkg, "stream.txt", url)
+            Log.d(TAG, "saveAppConfig: 已保存到publicDir: /sdcard/DCIM/XVirtualCamera/$pkg/stream.txt")
+            LogFileManager.writeToFile(TAG, "saveAppConfig: 已保存到publicDir: /sdcard/DCIM/XVirtualCamera/$pkg/stream.txt")
+            
+            // 尝试保存到 externalCacheDir（如果权限允许，符合readme.md原始设计）
+            // 注意：在Android 10+上，这通常会失败，但尝试一下也无妨
             try {
                 // externalCacheDir 路径格式：/storage/emulated/0/Android/data/[包名]/cache/
                 val targetCacheDir = File("/storage/emulated/0/Android/data/$pkg/cache")
@@ -197,12 +206,10 @@ class MainActivity : AppCompatActivity() {
                 Log.d(TAG, "saveAppConfig: 已保存到externalCacheDir: ${targetCacheDir.absolutePath}/stream.txt")
                 LogFileManager.writeToFile(TAG, "saveAppConfig: 已保存到externalCacheDir: ${targetCacheDir.absolutePath}/stream.txt")
             } catch (e: Exception) {
-                Log.e(TAG, "saveAppConfig: 保存到externalCacheDir失败: ${e.message}", e)
-                LogFileManager.writeException(TAG, e)
+                // Android 10+权限限制，无法写入其他应用的私有目录，这是正常的
+                Log.w(TAG, "saveAppConfig: 保存到externalCacheDir失败（权限限制，正常）: ${e.message}")
+                LogFileManager.writeToFile(TAG, "saveAppConfig: 保存到externalCacheDir失败（权限限制，正常）: ${e.message}")
             }
-            
-            // 同时保存到 publicDir（备用路径）
-            saveConfig(pkg, "stream.txt", url)
             
             // 删除两个位置的 virtual.mp4
             File(appDir, "virtual.mp4").delete()
