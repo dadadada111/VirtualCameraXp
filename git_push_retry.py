@@ -109,9 +109,54 @@ def build_apk():
         print(f"❌ APK 编译失败 (Exit Code: {result.returncode})")
         return False
 
+def setup_git_proxy():
+    """配置 Git 代理"""
+    # 检查环境变量中的代理设置
+    http_proxy = os.environ.get('HTTP_PROXY') or os.environ.get('http_proxy')
+    https_proxy = os.environ.get('HTTPS_PROXY') or os.environ.get('https_proxy')
+    all_proxy = os.environ.get('ALL_PROXY') or os.environ.get('all_proxy')
+    
+    # 检查 Git 全局代理配置
+    git_http_proxy = run_command(["git", "config", "--global", "--get", "http.proxy"], check=False, show_output=False)
+    git_https_proxy = run_command(["git", "config", "--global", "--get", "https.proxy"], check=False, show_output=False)
+    
+    proxy = None
+    if git_https_proxy.returncode == 0 and git_https_proxy.stdout.strip():
+        proxy = git_https_proxy.stdout.strip()
+        print(f"检测到 Git 全局代理配置: {proxy}")
+    elif https_proxy:
+        proxy = https_proxy
+        print(f"检测到环境变量代理: {proxy}")
+    elif http_proxy:
+        proxy = http_proxy
+        print(f"检测到环境变量代理: {proxy}")
+    elif all_proxy:
+        proxy = all_proxy
+        print(f"检测到环境变量代理: {proxy}")
+    
+    if not proxy:
+        # 询问用户是否要配置代理
+        print("\n未检测到代理配置，GitHub 连接可能不稳定")
+        use_proxy = input("是否要配置代理？(y/n，直接回车跳过): ").strip().lower()
+        if use_proxy == 'y':
+            proxy = input("请输入代理地址 (例如: http://127.0.0.1:7890 或 socks5://127.0.0.1:1080): ").strip()
+            if proxy:
+                # 配置 Git 全局代理
+                run_command(["git", "config", "--global", "http.proxy", proxy], check=False)
+                run_command(["git", "config", "--global", "https.proxy", proxy], check=False)
+                print(f"✅ 已配置 Git 代理: {proxy}")
+                return proxy
+    
+    return proxy
+
 def git_push_retry():
     """推送代码到 GitHub（带重试机制）"""
     print(f"\n[{datetime.datetime.now()}] ========== 步骤 3: 推送到 GitHub ==========")
+    
+    # 配置代理
+    proxy = setup_git_proxy()
+    if proxy:
+        print(f"使用代理: {proxy}")
     
     max_retries = 1000  # 设置一个很大的重试次数
     retry_interval = 5  # 重试间隔（秒）
@@ -138,6 +183,15 @@ def git_push_retry():
                 return True
             else:
                 print(f"[{datetime.datetime.now()}] ❌ 推送失败 (Exit Code: {result.returncode})")
+                
+                # 检查是否是网络连接问题
+                error_output = result.stderr.lower() if result.stderr else ""
+                if "connection" in error_output or "connect" in error_output or "timeout" in error_output:
+                    if not proxy:
+                        print("⚠️  检测到网络连接问题，建议配置代理")
+                        print("   可以设置环境变量: set HTTPS_PROXY=http://127.0.0.1:7890")
+                        print("   或配置 Git 代理: git config --global https.proxy http://127.0.0.1:7890")
+                
                 print(f"将在 {retry_interval} 秒后重试...")
                 time.sleep(retry_interval)
 
