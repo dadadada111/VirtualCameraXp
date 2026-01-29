@@ -174,9 +174,14 @@ class MainActivity : AppCompatActivity() {
     private fun saveConfig(pkg: String, fileName: String, content: String) {
         try {
             val dirPath = if (pkg.isEmpty()) publicDir else "$publicDir$pkg/"
+            val dir = File(dirPath)
+            if (!dir.exists()) {
+                dir.mkdirs()
+            }
             val file = File(dirPath + fileName)
+            // 使用UTF-8编码保存，确保与读取一致
             val fos = FileOutputStream(file)
-            fos.write(content.toByteArray())
+            fos.write(content.toByteArray(Charsets.UTF_8))
             fos.close()
             updateStatus("保存成功: ${file.absolutePath}")
         } catch (e: Exception) {

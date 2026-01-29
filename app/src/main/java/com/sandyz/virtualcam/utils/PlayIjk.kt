@@ -6,6 +6,8 @@ import tv.danmaku.ijk.media.player.IjkMediaPlayer
 import java.io.BufferedReader
 import java.io.File
 import java.io.FileReader
+import java.io.InputStreamReader
+import java.nio.charset.StandardCharsets
 
 /**
  *@author sandyz987
@@ -35,18 +37,24 @@ object PlayIjk {
         
         // 1. Check public specific config
         var filePath = "$publicDir$pkgName/stream.txt"
+        xLog("检查配置文件路径1: $filePath")
         var urlStr = readConfig(filePath)
+        xLog("读取结果1: urlStr='$urlStr', isBlank=${urlStr.isBlank()}")
         
         // 2. Check public global config
         if (urlStr.isBlank()) {
             filePath = "${publicDir}stream.txt"
+            xLog("检查配置文件路径2: $filePath")
             urlStr = readConfig(filePath)
+            xLog("读取结果2: urlStr='$urlStr', isBlank=${urlStr.isBlank()}")
         }
 
         // 3. Fallback to original cache config
         if (urlStr.isBlank()) {
              filePath = HookUtils.app?.externalCacheDir?.path?.toString() + "/stream.txt"
+             xLog("检查配置文件路径3: $filePath")
              urlStr = readConfig(filePath)
+             xLog("读取结果3: urlStr='$urlStr', isBlank=${urlStr.isBlank()}")
         }
 
         if (urlStr.isBlank()) {
@@ -92,14 +100,26 @@ object PlayIjk {
     private fun readConfig(path: String): String {
         try {
             val file = File(path)
-            if (file.exists()) {
-                val reader = BufferedReader(FileReader(file))
+            xLog("readConfig: 检查文件 $path, exists=${file.exists()}, canRead=${file.canRead()}, length=${if(file.exists()) file.length() else 0}")
+            if (file.exists() && file.canRead()) {
+                // 使用UTF-8编码读取，避免编码问题
+                val reader = BufferedReader(InputStreamReader(file.inputStream(), StandardCharsets.UTF_8))
                 val content = reader.readLine() ?: ""
                 reader.close()
-                return content.trim()
+                // 去除BOM标记（如果存在）
+                val trimmed = content.trim().removePrefix("\uFEFF")
+                xLog("readConfig: 读取内容='$content', 修剪后='$trimmed', 长度=${trimmed.length}")
+                if (trimmed.isNotEmpty()) {
+                    return trimmed
+                } else {
+                    xLog("readConfig: 文件内容为空或只有空白字符")
+                }
+            } else {
+                xLog("readConfig: 文件不存在或不可读 $path")
             }
         } catch (e: Exception) {
-            // ignore
+            xLog("readConfig: 读取文件异常 $path, 错误: ${e.message}")
+            e.printStackTrace()
         }
         return ""
     }
