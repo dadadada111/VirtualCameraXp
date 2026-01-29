@@ -59,8 +59,15 @@ def git_add_and_commit():
     return True
 
 def build_apk():
-    """编译打包 APK"""
-    print(f"\n[{datetime.datetime.now()}] ========== 步骤 2: 编译打包 APK ==========")
+    """编译打包 APK（本地编译，可选）"""
+    print(f"\n[{datetime.datetime.now()}] ========== 步骤 2: 本地编译打包 APK（可选） ==========")
+    
+    # 检查 JAVA_HOME
+    java_home = os.environ.get('JAVA_HOME')
+    if not java_home:
+        print("⚠️  未设置 JAVA_HOME，跳过本地编译")
+        print("提示: 代码推送后，GitHub Actions 会自动编译 APK")
+        return None  # 返回 None 表示跳过
     
     # 确定 gradlew 命令
     if platform.system() == "Windows":
@@ -159,11 +166,12 @@ def main():
         # 步骤 1: Git 添加和提交
         has_commit = git_add_and_commit()
         
-        # 步骤 2: 编译 APK
-        build_success = build_apk()
+        # 步骤 2: 编译 APK（可选，如果环境不支持会跳过）
+        build_result = build_apk()
         
-        if not build_success:
-            response = input("\nAPK 编译失败，是否继续推送？(y/n): ").strip().lower()
+        # build_result 可能为 True（成功）、False（失败）、None（跳过）
+        if build_result is False:
+            response = input("\n本地 APK 编译失败，是否继续推送？（推送后 GitHub Actions 会自动编译）(y/n): ").strip().lower()
             if response != 'y':
                 print("已取消推送。")
                 return
@@ -173,16 +181,20 @@ def main():
             push_success = git_push_retry()
             if push_success:
                 print("\n" + "=" * 60)
-                print("✅ 所有步骤完成！")
+                print("✅ 代码推送成功！")
+                print("📦 GitHub Actions 将自动编译 APK")
+                print("   查看编译进度: https://github.com/[你的用户名]/XVirtualCamera/actions")
                 print("=" * 60)
             else:
                 print("\n" + "=" * 60)
-                print("⚠️  推送失败，但 APK 已编译完成")
+                print("⚠️  推送失败")
+                if build_result:
+                    print("✅ 本地 APK 已编译完成")
                 print("=" * 60)
         else:
             print("\n没有需要推送的提交。")
-            if build_success:
-                print("✅ APK 编译完成！")
+            if build_result:
+                print("✅ 本地 APK 编译完成！")
         
     except KeyboardInterrupt:
         print("\n\n用户中断操作。")
