@@ -52,25 +52,28 @@ object PlayIjk {
         if (urlStr.isBlank()) {
             // Check video files
             // 1. Public specific video
-            urlStr = "$publicDir$pkgName/virtual.mp4"
-            if (!File(urlStr).exists()) {
+            var videoPath = "$publicDir$pkgName/virtual.mp4"
+            if (!File(videoPath).exists()) {
                 // 2. Public global video
-                urlStr = "${publicDir}virtual.mp4"
-                if (!File(urlStr).exists()) {
+                videoPath = "${publicDir}virtual.mp4"
+                if (!File(videoPath).exists()) {
                     // 3. Original cache video
-                    urlStr = HookUtils.app?.externalCacheDir?.path?.toString() + "/virtual.mp4"
-                    if (!File(urlStr).exists()) {
+                    videoPath = HookUtils.app?.externalCacheDir?.path?.toString() + "/virtual.mp4"
+                    if (!File(videoPath).exists()) {
                          toast(HookUtils.app, "未找到视频源！请在 /sdcard/DCIM/XVirtualCamera/ 下配置 stream.txt 或 virtual.mp4", Toast.LENGTH_LONG)
                          xLog("未找到视频源")
                          return
                     }
                 }
             }
-            
+            urlStr = videoPath
             toast(HookUtils.app, "播放本地视频：$urlStr", Toast.LENGTH_LONG)
             xLog("播放本地视频：$urlStr")
         } else {
+            // URL mode
             urlStr = urlStr.replace("https", "http")
+            toast(HookUtils.app, "播放网络流：$urlStr", Toast.LENGTH_LONG)
+            xLog("播放网络流：$urlStr")
         }
         vSurface.let {
             ijkMP.setSurface(it)
