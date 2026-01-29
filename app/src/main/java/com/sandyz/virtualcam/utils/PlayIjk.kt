@@ -30,31 +30,45 @@ object PlayIjk {
             toast(HookUtils.app, "播放失败！", Toast.LENGTH_SHORT)
             return
         }
-        val filePath = HookUtils.app?.externalCacheDir?.path?.toString() + "/stream.txt"
-        var urlStr = ""
-        try {
-            File(filePath).let {
-                if (!it.exists()) {
-                    it.createNewFile()
-                }
-                val reader = BufferedReader(FileReader(it))
-                urlStr = reader.readLine() ?: ""
-                reader.close()
-            }
-        } catch (e: Exception) {
-            toast(HookUtils.app, "读取失败！", Toast.LENGTH_SHORT)
-            xLog("读取失败！")
-        }
+        val pkgName = HookUtils.app?.packageName ?: ""
+        val publicDir = "/sdcard/DCIM/XVirtualCamera/"
+        
+        // 1. Check public specific config
+        var filePath = "$publicDir$pkgName/stream.txt"
+        var urlStr = readConfig(filePath)
+        
+        // 2. Check public global config
         if (urlStr.isBlank()) {
-            urlStr = HookUtils.app?.externalCacheDir?.path?.toString() + "/virtual.mp4"
-            if (File(urlStr).exists()) {
-                toast(HookUtils.app, "播放本地视频：$urlStr", Toast.LENGTH_LONG)
-                xLog("播放本地视频：$urlStr")
-            } else {
-                toast(HookUtils.app, "请前往${filePath}输入视频地址！或者查看插件使用说明！", Toast.LENGTH_LONG)
-                xLog("请前往${filePath}输入视频地址！或者查看插件使用说明！")
-                return
+            filePath = "${publicDir}stream.txt"
+            urlStr = readConfig(filePath)
+        }
+
+        // 3. Fallback to original cache config
+        if (urlStr.isBlank()) {
+             filePath = HookUtils.app?.externalCacheDir?.path?.toString() + "/stream.txt"
+             urlStr = readConfig(filePath)
+        }
+
+        if (urlStr.isBlank()) {
+            // Check video files
+            // 1. Public specific video
+            urlStr = "$publicDir$pkgName/virtual.mp4"
+            if (!File(urlStr).exists()) {
+                // 2. Public global video
+                urlStr = "${publicDir}virtual.mp4"
+                if (!File(urlStr).exists()) {
+                    // 3. Original cache video
+                    urlStr = HookUtils.app?.externalCacheDir?.path?.toString() + "/virtual.mp4"
+                    if (!File(urlStr).exists()) {
+                         toast(HookUtils.app, "未找到视频源！请在 /sdcard/DCIM/XVirtualCamera/ 下配置 stream.txt 或 virtual.mp4", Toast.LENGTH_LONG)
+                         xLog("未找到视频源")
+                         return
+                    }
+                }
             }
+            
+            toast(HookUtils.app, "播放本地视频：$urlStr", Toast.LENGTH_LONG)
+            xLog("播放本地视频：$urlStr")
         } else {
             urlStr = urlStr.replace("https", "http")
         }
@@ -70,5 +84,20 @@ object PlayIjk {
         toast(HookUtils.app, "开始播放，ijk:$ijkMP，surface:$vSurface url:$urlStr", Toast.LENGTH_SHORT)
         xLog("开始播放，ijk:$ijkMP，surface:$vSurface url:$urlStr")
         xLog("currentActivity: ${HookUtils.getActivities()}, currentTopActivity: ${HookUtils.getTopActivity()}")
+    }
+
+    private fun readConfig(path: String): String {
+        try {
+            val file = File(path)
+            if (file.exists()) {
+                val reader = BufferedReader(FileReader(file))
+                val content = reader.readLine() ?: ""
+                reader.close()
+                return content.trim()
+            }
+        } catch (e: Exception) {
+            // ignore
+        }
+        return ""
     }
 }
