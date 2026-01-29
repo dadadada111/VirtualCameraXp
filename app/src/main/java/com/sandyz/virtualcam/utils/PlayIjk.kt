@@ -101,21 +101,43 @@ object PlayIjk {
         try {
             val file = File(path)
             xLog("readConfig: 检查文件 $path, exists=${file.exists()}, canRead=${file.canRead()}, length=${if(file.exists()) file.length() else 0}")
-            if (file.exists() && file.canRead()) {
+            if (file.exists() && file.canRead() && file.length() > 0) {
                 // 使用UTF-8编码读取，避免编码问题
                 val reader = BufferedReader(InputStreamReader(file.inputStream(), StandardCharsets.UTF_8))
-                val content = reader.readLine() ?: ""
+                // 读取所有行，然后合并（去除每行的空白）
+                val lines = mutableListOf<String>()
+                var line: String?
+                while (reader.readLine().also { line = it } != null) {
+                    val trimmed = line!!.trim().removePrefix("\uFEFF")
+                    if (trimmed.isNotEmpty()) {
+                        lines.add(trimmed)
+                    }
+                }
                 reader.close()
-                // 去除BOM标记（如果存在）
-                val trimmed = content.trim().removePrefix("\uFEFF")
-                xLog("readConfig: 读取内容='$content', 修剪后='$trimmed', 长度=${trimmed.length}")
-                if (trimmed.isNotEmpty()) {
-                    return trimmed
+                
+                // 取第一行非空内容作为URL
+                val urlStr = lines.firstOrNull() ?: ""
+                xLog("readConfig: 读取内容行数=${lines.size}, URL='$urlStr', 长度=${urlStr.length}")
+                
+                // 验证URL格式（简单检查是否包含协议）
+                if (urlStr.isNotEmpty()) {
+                    val lowerUrl = urlStr.lowercase()
+                    // 检查是否是有效的URL格式（http://, https://, rtmp://, rtsp://等）
+                    if (lowerUrl.startsWith("http://") || lowerUrl.startsWith("https://") || 
+                        lowerUrl.startsWith("rtmp://") || lowerUrl.startsWith("rtsp://") ||
+                        lowerUrl.startsWith("rtp://") || lowerUrl.startsWith("udp://")) {
+                        xLog("readConfig: 检测到有效的网络URL")
+                        return urlStr
+                    } else {
+                        xLog("readConfig: URL格式可能无效: $urlStr")
+                        // 即使格式可能无效，也返回，让播放器尝试
+                        return urlStr
+                    }
                 } else {
                     xLog("readConfig: 文件内容为空或只有空白字符")
                 }
             } else {
-                xLog("readConfig: 文件不存在或不可读 $path")
+                xLog("readConfig: 文件不存在、不可读或文件大小为0 $path")
             }
         } catch (e: Exception) {
             xLog("readConfig: 读取文件异常 $path, 错误: ${e.message}")

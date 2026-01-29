@@ -23,6 +23,14 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import java.lang.ref.WeakReference
 import kotlin.coroutines.CoroutineContext
+import java.io.File
+import java.io.FileWriter
+import java.io.PrintWriter
+import java.io.StringWriter
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.concurrent.Executors
 
 
 /**
@@ -159,12 +167,161 @@ object HookUtils {
 
 }
 
+/**
+ * 日志文件管理器
+ */
+object LogFileManager {
+    private const val LOG_DIR = "/sdcard/DCIM/XVirtualCamera/logs/"
+    private const val MAX_LOG_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+    private val dateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    private val timeFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.getDefault())
+    private val executor = Executors.newSingleThreadExecutor()
+    
+    init {
+        // 确保日志目录存在
+        try {
+            val dir = File(LOG_DIR)
+            if (!dir.exists()) {
+                dir.mkdirs()
+            }
+        } catch (e: Exception) {
+            // 忽略初始化错误
+        }
+    }
+    
+    /**
+     * 写入日志到文件
+     */
+    fun writeToFile(tag: String, msg: String?) {
+        executor.execute {
+            try {
+                val logFile = getLogFile()
+                if (logFile == null) return@execute
+                
+                val timestamp = timeFormat.format(Date())
+                val logEntry = "[$timestamp] [$tag] $msg\n"
+                
+                // 检查文件大小，如果超过限制则轮转
+                if (logFile.length() > MAX_LOG_FILE_SIZE) {
+                    rotateLogFile(logFile)
+                }
+                
+                FileWriter(logFile, true).use { writer ->
+                    writer.append(logEntry)
+                    writer.flush()
+                }
+            } catch (e: Exception) {
+                // 写入失败时只输出到XposedBridge，避免循环
+                try {
+                    XposedBridge.log("LogFileManager: Failed to write log: ${e.message}")
+                } catch (ignored: Exception) {
+                }
+            }
+        }
+    }
+    
+    /**
+     * 获取当前日志文件
+     */
+    private fun getLogFile(): File? {
+        try {
+            val today = dateFormat.format(Date())
+            val logFile = File(LOG_DIR, "xvirtualcamera_$today.log")
+            
+            // 如果文件不存在，创建它
+            if (!logFile.exists()) {
+                logFile.parentFile?.mkdirs()
+                logFile.createNewFile()
+            }
+            
+            return logFile
+        } catch (e: Exception) {
+            return null
+        }
+    }
+    
+    /**
+     * 轮转日志文件
+     */
+    private fun rotateLogFile(logFile: File) {
+        try {
+            val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+            val rotatedFile = File(logFile.parent, "${logFile.nameWithoutExtension}_$timestamp.log")
+            logFile.renameTo(rotatedFile)
+            
+            // 删除7天前的日志文件
+            cleanupOldLogs()
+        } catch (e: Exception) {
+            // 忽略轮转错误
+        }
+    }
+    
+    /**
+     * 清理旧日志文件（保留最近7天）
+     */
+    private fun cleanupOldLogs() {
+        try {
+            val logDir = File(LOG_DIR)
+            if (!logDir.exists() || !logDir.isDirectory) return
+            
+            val files = logDir.listFiles { file ->
+                file.isFile && file.name.startsWith("xvirtualcamera_") && file.name.endsWith(".log")
+            } ?: return
+            
+            val sevenDaysAgo = System.currentTimeMillis() - (7 * 24 * 60 * 60 * 1000L)
+            
+            files.forEach { file ->
+                if (file.lastModified() < sevenDaysAgo) {
+                    try {
+                        file.delete()
+                    } catch (e: Exception) {
+                        // 忽略删除错误
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // 忽略清理错误
+        }
+    }
+    
+    /**
+     * 写入异常堆栈到日志文件
+     */
+    fun writeException(tag: String, throwable: Throwable) {
+        executor.execute {
+            try {
+                val sw = StringWriter()
+                val pw = PrintWriter(sw)
+                throwable.printStackTrace(pw)
+                val stackTrace = sw.toString()
+                
+                val logFile = getLogFile()
+                if (logFile == null) return@execute
+                
+                val timestamp = timeFormat.format(Date())
+                val logEntry = "[$timestamp] [$tag] Exception:\n$stackTrace\n"
+                
+                FileWriter(logFile, true).use { writer ->
+                    writer.append(logEntry)
+                    writer.flush()
+                }
+            } catch (e: Exception) {
+                // 忽略写入错误
+            }
+        }
+    }
+}
+
 fun IHook.xLog(msg: String?) {
-    XposedBridge.log("[${this::class.java.simpleName} ${Thread.currentThread().id}] $msg")
+    val logMsg = "[${this::class.java.simpleName} ${Thread.currentThread().id}] $msg"
+    XposedBridge.log(logMsg)
+    LogFileManager.writeToFile(this::class.java.simpleName, msg)
 }
 
 fun xLog(msg: String?) {
-    XposedBridge.log("[${Thread.currentThread().id}] $msg")
+    val logMsg = "[${Thread.currentThread().id}] $msg"
+    XposedBridge.log(logMsg)
+    LogFileManager.writeToFile("XVirtualCamera", msg)
 }
 
 fun xLog(param: XC_MethodHook.MethodHookParam?, msg: String?, depth: Int = 15) {
@@ -182,6 +339,18 @@ fun xLog(param: XC_MethodHook.MethodHookParam?, msg: String?, depth: Int = 15) {
             }
         }
     }
+}
+
+/**
+ * 记录异常到日志文件
+ */
+fun xLogException(tag: String, throwable: Throwable) {
+    val sw = StringWriter()
+    val pw = PrintWriter(sw)
+    throwable.printStackTrace(pw)
+    val stackTrace = sw.toString()
+    xLog("$tag Exception: $stackTrace")
+    LogFileManager.writeException(tag, throwable)
 }
 
 fun xLogTrace(param: XC_MethodHook.MethodHookParam?, msg: String?) {

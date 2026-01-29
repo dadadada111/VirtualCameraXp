@@ -15,11 +15,18 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.sandyz.virtualcam.R
+import com.sandyz.virtualcam.utils.LogFileManager
+import android.util.Log
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.nio.charset.StandardCharsets
 
 class MainActivity : AppCompatActivity() {
+
+    private val TAG = "MainActivity"
 
     private lateinit var etGlobalUrl: EditText
     private lateinit var tvGlobalVideoPath: TextView
@@ -66,10 +73,14 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        
+        Log.d(TAG, "MainActivity onCreate")
+        LogFileManager.writeToFile(TAG, "MainActivity onCreate")
 
         initViews()
         checkPermissions()
         createPublicDir()
+        loadConfigs()
     }
 
     private fun initViews() {
@@ -136,14 +147,22 @@ class MainActivity : AppCompatActivity() {
 
     private fun saveGlobalConfig() {
         val url = etGlobalUrl.text.toString().trim()
+        Log.d(TAG, "saveGlobalConfig: url='$url', selectedGlobalUri=$selectedGlobalUri")
+        LogFileManager.writeToFile(TAG, "saveGlobalConfig: url='$url', selectedGlobalUri=$selectedGlobalUri")
+        
         if (url.isNotEmpty()) {
             saveConfig("", "stream.txt", url)
             // Delete virtual.mp4 to avoid conflict if exists
             File(publicDir + "virtual.mp4").delete()
+            // Clear video selection
+            tvGlobalVideoPath.text = "未选择"
+            selectedGlobalUri = null
         } else if (selectedGlobalUri != null) {
             copyVideo(selectedGlobalUri!!, "", "virtual.mp4")
             // Delete stream.txt to avoid conflict
             File(publicDir + "stream.txt").delete()
+            // Clear URL
+            etGlobalUrl.setText("")
         } else {
             updateStatus("全局配置为空，未保存")
         }
@@ -160,12 +179,20 @@ class MainActivity : AppCompatActivity() {
         if (!appDir.exists()) appDir.mkdirs()
 
         val url = etAppUrl.text.toString().trim()
+        Log.d(TAG, "saveAppConfig: pkg='$pkg', url='$url', selectedAppUri=$selectedAppUri")
+        LogFileManager.writeToFile(TAG, "saveAppConfig: pkg='$pkg', url='$url', selectedAppUri=$selectedAppUri")
+        
         if (url.isNotEmpty()) {
             saveConfig(pkg, "stream.txt", url)
             File(appDir, "virtual.mp4").delete()
+            // Clear video selection
+            tvAppVideoPath.text = "未选择"
+            selectedAppUri = null
         } else if (selectedAppUri != null) {
             copyVideo(selectedAppUri!!, pkg, "virtual.mp4")
             File(appDir, "stream.txt").delete()
+            // Clear URL
+            etAppUrl.setText("")
         } else {
             updateStatus("应用配置为空，未保存")
         }
@@ -225,6 +252,120 @@ class MainActivity : AppCompatActivity() {
             updateStatus("配置已清除: $dirPath")
         } catch (e: Exception) {
             updateStatus("清除失败: ${e.message}")
+        }
+    }
+
+    private fun loadConfigs() {
+        // Load global config
+        loadGlobalConfig()
+        // Load app configs (we'll load the last saved one if any)
+        loadLastAppConfig()
+    }
+
+    private fun loadGlobalConfig() {
+        try {
+            Log.d(TAG, "loadGlobalConfig: 开始加载全局配置")
+            LogFileManager.writeToFile(TAG, "loadGlobalConfig: 开始加载全局配置")
+            
+            // Check for stream.txt (network URL)
+            val streamFile = File(publicDir + "stream.txt")
+            if (streamFile.exists() && streamFile.canRead()) {
+                val reader = BufferedReader(InputStreamReader(streamFile.inputStream(), StandardCharsets.UTF_8))
+                val url = reader.readLine()?.trim()?.removePrefix("\uFEFF") ?: ""
+                reader.close()
+                Log.d(TAG, "loadGlobalConfig: 读取到stream.txt, url='$url'")
+                LogFileManager.writeToFile(TAG, "loadGlobalConfig: 读取到stream.txt, url='$url'")
+                if (url.isNotEmpty()) {
+                    etGlobalUrl.setText(url)
+                    tvGlobalVideoPath.text = "未选择"
+                    selectedGlobalUri = null
+                    return
+                }
+            } else {
+                Log.d(TAG, "loadGlobalConfig: stream.txt不存在或不可读")
+                LogFileManager.writeToFile(TAG, "loadGlobalConfig: stream.txt不存在或不可读")
+            }
+            
+            // Check for virtual.mp4 (local video)
+            val videoFile = File(publicDir + "virtual.mp4")
+            if (videoFile.exists()) {
+                Log.d(TAG, "loadGlobalConfig: 找到virtual.mp4: ${videoFile.absolutePath}")
+                LogFileManager.writeToFile(TAG, "loadGlobalConfig: 找到virtual.mp4: ${videoFile.absolutePath}")
+                tvGlobalVideoPath.text = videoFile.absolutePath
+                etGlobalUrl.setText("")
+                // Note: We can't restore the original Uri, but we can show the path
+            } else {
+                Log.d(TAG, "loadGlobalConfig: virtual.mp4不存在")
+                LogFileManager.writeToFile(TAG, "loadGlobalConfig: virtual.mp4不存在")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "loadGlobalConfig: 异常", e)
+            LogFileManager.writeException(TAG, e)
+            e.printStackTrace()
+        }
+    }
+
+    private fun loadLastAppConfig() {
+        try {
+            Log.d(TAG, "loadLastAppConfig: 开始加载应用配置")
+            LogFileManager.writeToFile(TAG, "loadLastAppConfig: 开始加载应用配置")
+            
+            val publicDirFile = File(publicDir)
+            if (!publicDirFile.exists() || !publicDirFile.isDirectory()) {
+                Log.d(TAG, "loadLastAppConfig: 公共目录不存在")
+                LogFileManager.writeToFile(TAG, "loadLastAppConfig: 公共目录不存在")
+                return
+            }
+            
+            // Find the most recently modified app directory
+            val appDirs = publicDirFile.listFiles { file ->
+                file.isDirectory && file.name != "." && file.name != ".."
+            } ?: return
+            
+            if (appDirs.isEmpty()) {
+                Log.d(TAG, "loadLastAppConfig: 没有找到应用配置目录")
+                LogFileManager.writeToFile(TAG, "loadLastAppConfig: 没有找到应用配置目录")
+                return
+            }
+            
+            // Get the most recently modified directory
+            val lastModifiedDir = appDirs.maxByOrNull { it.lastModified() } ?: return
+            val pkg = lastModifiedDir.name
+            
+            Log.d(TAG, "loadLastAppConfig: 找到最近修改的配置目录: $pkg")
+            LogFileManager.writeToFile(TAG, "loadLastAppConfig: 找到最近修改的配置目录: $pkg")
+            
+            etAppPackage.setText(pkg)
+            
+            // Check for stream.txt (network URL)
+            val streamFile = File(lastModifiedDir, "stream.txt")
+            if (streamFile.exists() && streamFile.canRead()) {
+                val reader = BufferedReader(InputStreamReader(streamFile.inputStream(), StandardCharsets.UTF_8))
+                val url = reader.readLine()?.trim()?.removePrefix("\uFEFF") ?: ""
+                reader.close()
+                Log.d(TAG, "loadLastAppConfig: 读取到stream.txt, url='$url'")
+                LogFileManager.writeToFile(TAG, "loadLastAppConfig: 读取到stream.txt, url='$url'")
+                if (url.isNotEmpty()) {
+                    etAppUrl.setText(url)
+                    tvAppVideoPath.text = "未选择"
+                    selectedAppUri = null
+                    return
+                }
+            }
+            
+            // Check for virtual.mp4 (local video)
+            val videoFile = File(lastModifiedDir, "virtual.mp4")
+            if (videoFile.exists()) {
+                Log.d(TAG, "loadLastAppConfig: 找到virtual.mp4: ${videoFile.absolutePath}")
+                LogFileManager.writeToFile(TAG, "loadLastAppConfig: 找到virtual.mp4: ${videoFile.absolutePath}")
+                tvAppVideoPath.text = videoFile.absolutePath
+                etAppUrl.setText("")
+                // Note: We can't restore the original Uri, but we can show the path
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "loadLastAppConfig: 异常", e)
+            LogFileManager.writeException(TAG, e)
+            e.printStackTrace()
         }
     }
 
