@@ -183,18 +183,124 @@ class MainActivity : AppCompatActivity() {
         LogFileManager.writeToFile(TAG, "saveAppConfig: pkg='$pkg', url='$url', selectedAppUri=$selectedAppUri")
         
         if (url.isNotEmpty()) {
+            // 根据readme.md文档，原始设计使用 externalCacheDir 路径
+            // 同时保存到两个位置：1. externalCacheDir（原始设计，优先） 2. publicDir（备用）
+            try {
+                // externalCacheDir 路径格式：/storage/emulated/0/Android/data/[包名]/cache/
+                val targetCacheDir = File("/storage/emulated/0/Android/data/$pkg/cache")
+                if (!targetCacheDir.exists()) {
+                    val created = targetCacheDir.mkdirs()
+                    Log.d(TAG, "saveAppConfig: 创建externalCacheDir目录: ${targetCacheDir.absolutePath}, 结果=$created")
+                }
+                // 保存到 externalCacheDir（符合readme.md原始设计）
+                saveConfigToPath(targetCacheDir.absolutePath, "stream.txt", url)
+                Log.d(TAG, "saveAppConfig: 已保存到externalCacheDir: ${targetCacheDir.absolutePath}/stream.txt")
+                LogFileManager.writeToFile(TAG, "saveAppConfig: 已保存到externalCacheDir: ${targetCacheDir.absolutePath}/stream.txt")
+            } catch (e: Exception) {
+                Log.e(TAG, "saveAppConfig: 保存到externalCacheDir失败: ${e.message}", e)
+                LogFileManager.writeException(TAG, e)
+            }
+            
+            // 同时保存到 publicDir（备用路径）
             saveConfig(pkg, "stream.txt", url)
+            
+            // 删除两个位置的 virtual.mp4
             File(appDir, "virtual.mp4").delete()
+            try {
+                val targetCacheDir = File("/storage/emulated/0/Android/data/$pkg/cache")
+                File(targetCacheDir, "virtual.mp4").delete()
+            } catch (e: Exception) {
+                // 忽略删除错误
+            }
+            
             // Clear video selection
             tvAppVideoPath.text = "未选择"
             selectedAppUri = null
         } else if (selectedAppUri != null) {
+            // 保存视频文件到两个位置
             copyVideo(selectedAppUri!!, pkg, "virtual.mp4")
+            try {
+                val targetCacheDir = File("/storage/emulated/0/Android/data/$pkg/cache")
+                if (!targetCacheDir.exists()) {
+                    targetCacheDir.mkdirs()
+                }
+                copyVideoToPath(selectedAppUri!!, targetCacheDir.absolutePath, "virtual.mp4")
+            } catch (e: Exception) {
+                Log.e(TAG, "saveAppConfig: 复制视频到externalCacheDir失败: ${e.message}")
+            }
+            
+            // 删除两个位置的 stream.txt
             File(appDir, "stream.txt").delete()
+            try {
+                val targetCacheDir = File("/storage/emulated/0/Android/data/$pkg/cache")
+                File(targetCacheDir, "stream.txt").delete()
+            } catch (e: Exception) {
+                // 忽略删除错误
+            }
+            
             // Clear URL
             etAppUrl.setText("")
         } else {
             updateStatus("应用配置为空，未保存")
+        }
+    }
+    
+    private fun saveConfigToPath(dirPath: String, fileName: String, content: String) {
+        try {
+            val dir = File(dirPath)
+            if (!dir.exists()) {
+                dir.mkdirs()
+            }
+            val file = File(dir, fileName)
+            
+            val cleanContent = content.trim()
+            val contentBytes = cleanContent.toByteArray(Charsets.UTF_8)
+            val fos = FileOutputStream(file)
+            fos.write(contentBytes)
+            fos.flush()
+            fos.close()
+            
+            // 设置文件权限
+            try {
+                file.setReadable(true, false)
+                file.setWritable(true, false)
+            } catch (e: Exception) {
+                Log.w(TAG, "saveConfigToPath: 设置文件权限失败: ${e.message}")
+            }
+            
+            Log.d(TAG, "saveConfigToPath: 保存成功 - ${file.absolutePath}, 大小=${file.length()}")
+        } catch (e: Exception) {
+            Log.e(TAG, "saveConfigToPath: 保存失败: ${e.message}")
+            throw e
+        }
+    }
+    
+    private fun copyVideoToPath(uri: Uri, dirPath: String, fileName: String) {
+        try {
+            val dir = File(dirPath)
+            if (!dir.exists()) {
+                dir.mkdirs()
+            }
+            val outFile = File(dir, fileName)
+            
+            val inputStream: InputStream? = contentResolver.openInputStream(uri)
+            if (inputStream == null) {
+                throw Exception("无法读取源文件")
+            }
+            
+            val fos = FileOutputStream(outFile)
+            val buffer = ByteArray(1024)
+            var length: Int
+            while (inputStream.read(buffer).also { length = it } > 0) {
+                fos.write(buffer, 0, length)
+            }
+            fos.close()
+            inputStream.close()
+            
+            Log.d(TAG, "copyVideoToPath: 视频保存成功 - ${outFile.absolutePath}")
+        } catch (e: Exception) {
+            Log.e(TAG, "copyVideoToPath: 视频保存失败: ${e.message}")
+            throw e
         }
     }
 

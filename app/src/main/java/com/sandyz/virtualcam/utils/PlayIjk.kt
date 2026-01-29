@@ -49,40 +49,48 @@ object PlayIjk {
         LogFileManager.writeToFile("PlayIjk", "开始查找配置，包名='$pkgName', publicDir='$publicDir'")
         xLog("PlayIjk.play: 开始查找配置，包名='$pkgName', publicDir='$publicDir'")
         
-        // 1. Check public specific config
-        var filePath = "$publicDir$pkgName/stream.txt"
-        LogFileManager.writeToFile("PlayIjk", "=== 开始检查配置 ===")
-        LogFileManager.writeToFile("PlayIjk", "包名: $pkgName")
-        LogFileManager.writeToFile("PlayIjk", "publicDir: $publicDir")
-        LogFileManager.writeToFile("PlayIjk", "检查配置文件路径1: $filePath")
-        xLog("检查配置文件路径1: $filePath")
+        var urlStr = ""
         
-        // 先检查文件是否存在
-        val configFile = File(filePath)
-        LogFileManager.writeToFile("PlayIjk", "文件存在性检查: exists=${configFile.exists()}, canRead=${configFile.canRead()}, length=${if(configFile.exists()) configFile.length() else 0}")
+        // 根据readme.md文档，原始设计优先使用 externalCacheDir 路径
+        // 1. Check original cache config (符合readme.md文档的原始设计)
+        val cacheDirPath = HookUtils.app?.externalCacheDir?.path?.toString()
+        if (!cacheDirPath.isNullOrEmpty()) {
+            var filePath = "$cacheDirPath/stream.txt"
+            LogFileManager.writeToFile("PlayIjk", "=== 开始检查配置（按readme.md原始设计） ===")
+            LogFileManager.writeToFile("PlayIjk", "包名: $pkgName")
+            LogFileManager.writeToFile("PlayIjk", "检查配置文件路径1（externalCacheDir）: $filePath")
+            xLog("检查配置文件路径1（externalCacheDir）: $filePath")
+            
+            val configFile = File(filePath)
+            LogFileManager.writeToFile("PlayIjk", "文件存在性检查: exists=${configFile.exists()}, canRead=${configFile.canRead()}, length=${if(configFile.exists()) configFile.length() else 0}")
+            
+            urlStr = readConfig(filePath)
+            LogFileManager.writeToFile("PlayIjk", "读取结果1: urlStr='$urlStr', isBlank=${urlStr.isBlank()}, isEmpty=${urlStr.isEmpty()}, length=${urlStr.length}")
+            xLog("读取结果1: urlStr='$urlStr', isBlank=${urlStr.isBlank()}, length=${urlStr.length}")
+        }
         
-        var urlStr = readConfig(filePath)
-        LogFileManager.writeToFile("PlayIjk", "读取结果1: urlStr='$urlStr', isBlank=${urlStr.isBlank()}, isEmpty=${urlStr.isEmpty()}, length=${urlStr.length}")
-        xLog("读取结果1: urlStr='$urlStr', isBlank=${urlStr.isBlank()}, length=${urlStr.length}")
-        
-        // 2. Check public global config
+        // 2. Check public specific config (新增的路径，作为备用)
         if (urlStr.isBlank()) {
-            filePath = "${publicDir}stream.txt"
-            LogFileManager.writeToFile("PlayIjk", "检查配置文件路径2: $filePath")
-            xLog("检查配置文件路径2: $filePath")
+            var filePath = "$publicDir$pkgName/stream.txt"
+            LogFileManager.writeToFile("PlayIjk", "检查配置文件路径2（publicDir特定应用）: $filePath")
+            xLog("检查配置文件路径2（publicDir特定应用）: $filePath")
+            
+            val configFile = File(filePath)
+            LogFileManager.writeToFile("PlayIjk", "文件存在性检查: exists=${configFile.exists()}, canRead=${configFile.canRead()}, length=${if(configFile.exists()) configFile.length() else 0}")
+            
             urlStr = readConfig(filePath)
             LogFileManager.writeToFile("PlayIjk", "读取结果2: urlStr='$urlStr', isBlank=${urlStr.isBlank()}, length=${urlStr.length}")
             xLog("读取结果2: urlStr='$urlStr', isBlank=${urlStr.isBlank()}, length=${urlStr.length}")
         }
-
-        // 3. Fallback to original cache config
+        
+        // 3. Check public global config (新增的路径，作为备用)
         if (urlStr.isBlank()) {
-             filePath = HookUtils.app?.externalCacheDir?.path?.toString() + "/stream.txt"
-             LogFileManager.writeToFile("PlayIjk", "检查配置文件路径3: $filePath")
-             xLog("检查配置文件路径3: $filePath")
-             urlStr = readConfig(filePath)
-             LogFileManager.writeToFile("PlayIjk", "读取结果3: urlStr='$urlStr', isBlank=${urlStr.isBlank()}, length=${urlStr.length}")
-             xLog("读取结果3: urlStr='$urlStr', isBlank=${urlStr.isBlank()}, length=${urlStr.length}")
+            var filePath = "${publicDir}stream.txt"
+            LogFileManager.writeToFile("PlayIjk", "检查配置文件路径3（publicDir全局）: $filePath")
+            xLog("检查配置文件路径3（publicDir全局）: $filePath")
+            urlStr = readConfig(filePath)
+            LogFileManager.writeToFile("PlayIjk", "读取结果3: urlStr='$urlStr', isBlank=${urlStr.isBlank()}, length=${urlStr.length}")
+            xLog("读取结果3: urlStr='$urlStr', isBlank=${urlStr.isBlank()}, length=${urlStr.length}")
         }
         
         // 额外检查：列出所有可能的配置文件
@@ -110,22 +118,23 @@ object PlayIjk {
         }
 
         if (urlStr.isBlank()) {
-            // Check video files
-            // 1. Public specific video
-            var videoPath = "$publicDir$pkgName/virtual.mp4"
-            LogFileManager.writeToFile("PlayIjk", "检查本地视频文件1: $videoPath, 存在=${File(videoPath).exists()}")
+            // Check video files (按readme.md原始设计，优先检查externalCacheDir)
+            // 1. Original cache video (符合readme.md文档的原始设计)
+            var videoPath = HookUtils.app?.externalCacheDir?.path?.toString() + "/virtual.mp4"
+            LogFileManager.writeToFile("PlayIjk", "检查本地视频文件1（externalCacheDir）: $videoPath, 存在=${File(videoPath).exists()}")
             if (!File(videoPath).exists()) {
-                // 2. Public global video
-                videoPath = "${publicDir}virtual.mp4"
-                LogFileManager.writeToFile("PlayIjk", "检查本地视频文件2: $videoPath, 存在=${File(videoPath).exists()}")
+                // 2. Public specific video (新增的路径，作为备用)
+                videoPath = "$publicDir$pkgName/virtual.mp4"
+                LogFileManager.writeToFile("PlayIjk", "检查本地视频文件2（publicDir特定应用）: $videoPath, 存在=${File(videoPath).exists()}")
                 if (!File(videoPath).exists()) {
-                    // 3. Original cache video
-                    videoPath = HookUtils.app?.externalCacheDir?.path?.toString() + "/virtual.mp4"
-                    LogFileManager.writeToFile("PlayIjk", "检查本地视频文件3: $videoPath, 存在=${File(videoPath).exists()}")
+                    // 3. Public global video (新增的路径，作为备用)
+                    videoPath = "${publicDir}virtual.mp4"
+                    LogFileManager.writeToFile("PlayIjk", "检查本地视频文件3（publicDir全局）: $videoPath, 存在=${File(videoPath).exists()}")
                     if (!File(videoPath).exists()) {
-                         val errorMsg = "未找到视频源！请在 /sdcard/DCIM/XVirtualCamera/ 下配置 stream.txt 或 virtual.mp4"
+                         val errorMsg = "未找到视频源！请在 /storage/emulated/0/Android/data/$pkgName/cache/ 或 /sdcard/DCIM/XVirtualCamera/ 下配置 stream.txt 或 virtual.mp4"
                          LogFileManager.writeToFile("PlayIjk", "错误: $errorMsg")
-                         LogFileManager.writeToFile("PlayIjk", "包名='$pkgName', 已检查的配置文件路径: $publicDir$pkgName/stream.txt, ${publicDir}stream.txt")
+                         val cachePath = HookUtils.app?.externalCacheDir?.path?.toString() ?: "未知"
+                         LogFileManager.writeToFile("PlayIjk", "包名='$pkgName', 已检查的配置文件路径: $cachePath/stream.txt, $publicDir$pkgName/stream.txt, ${publicDir}stream.txt")
                          toast(HookUtils.app, errorMsg, Toast.LENGTH_LONG)
                          xLog("未找到视频源")
                          return
@@ -166,16 +175,48 @@ object PlayIjk {
             val absolutePath = file.absolutePath
             
             // 强制写入日志文件
+            LogFileManager.writeToFile("PlayIjk.readConfig", "=== readConfig 开始 ===")
             LogFileManager.writeToFile("PlayIjk.readConfig", "检查文件: $path")
             LogFileManager.writeToFile("PlayIjk.readConfig", "绝对路径=$absolutePath, exists=$exists, canRead=$canRead, length=$length")
             
             xLog("readConfig: 检查文件 $path")
             xLog("readConfig: 绝对路径=$absolutePath, exists=$exists, canRead=$canRead, length=$length")
             
-            if (exists && canRead && length > 0) {
-                // 使用UTF-8编码读取，避免编码问题
+            if (!exists) {
+                LogFileManager.writeToFile("PlayIjk.readConfig", "文件不存在: $absolutePath")
+                xLog("readConfig: 文件不存在: $absolutePath")
+                return ""
+            }
+            
+            if (!canRead) {
+                LogFileManager.writeToFile("PlayIjk.readConfig", "文件不可读: $absolutePath")
+                xLog("readConfig: 文件不可读: $absolutePath")
+                // 尝试使用其他方式读取
+                try {
+                    file.setReadable(true, false)
+                    if (file.canRead()) {
+                        LogFileManager.writeToFile("PlayIjk.readConfig", "设置权限后可以读取")
+                    }
+                } catch (e: Exception) {
+                    LogFileManager.writeToFile("PlayIjk.readConfig", "设置权限失败: ${e.message}")
+                }
+                if (!file.canRead()) {
+                    return ""
+                }
+            }
+            
+            if (length == 0L) {
+                LogFileManager.writeToFile("PlayIjk.readConfig", "文件大小为0: $absolutePath")
+                xLog("readConfig: 文件大小为0: $absolutePath")
+                return ""
+            }
+            
+            // 使用UTF-8编码读取，避免编码问题
+            // 尝试多种读取方式
+            var urlStr = ""
+            try {
+                // 方式1: 使用 BufferedReader
                 val reader = BufferedReader(InputStreamReader(file.inputStream(), StandardCharsets.UTF_8))
-                // 读取所有行，然后合并（去除每行的空白）
                 val lines = mutableListOf<String>()
                 var line: String?
                 var lineNumber = 0
@@ -191,45 +232,43 @@ object PlayIjk {
                 reader.close()
                 
                 // 取第一行非空内容作为URL
-                val urlStr = lines.firstOrNull() ?: ""
-                LogFileManager.writeToFile("PlayIjk.readConfig", "读取内容行数=${lines.size}, 有效行数=${lines.size}, URL='$urlStr', 长度=${urlStr.length}")
-                xLog("readConfig: 读取内容行数=${lines.size}, 有效行数=${lines.size}, URL='$urlStr', 长度=${urlStr.length}")
-                
-                // 验证URL格式（简单检查是否包含协议）
-                if (urlStr.isNotEmpty()) {
-                    val lowerUrl = urlStr.lowercase()
-                    // 检查是否是有效的URL格式（http://, https://, rtmp://, rtsp://等）
-                    if (lowerUrl.startsWith("http://") || lowerUrl.startsWith("https://") || 
-                        lowerUrl.startsWith("rtmp://") || lowerUrl.startsWith("rtsp://") ||
-                        lowerUrl.startsWith("rtp://") || lowerUrl.startsWith("udp://")) {
-                        LogFileManager.writeToFile("PlayIjk.readConfig", "检测到有效的网络URL: $urlStr")
-                        xLog("readConfig: 检测到有效的网络URL: $urlStr")
-                        return urlStr
-                    } else {
-                        LogFileManager.writeToFile("PlayIjk.readConfig", "URL格式可能无效，但返回尝试: $urlStr")
-                        xLog("readConfig: URL格式可能无效，但返回尝试: $urlStr")
-                        // 即使格式可能无效，也返回，让播放器尝试
-                        return urlStr
-                    }
+                urlStr = lines.firstOrNull() ?: ""
+                LogFileManager.writeToFile("PlayIjk.readConfig", "方式1读取结果: 行数=${lines.size}, URL='$urlStr', 长度=${urlStr.length}")
+            } catch (e: Exception) {
+                LogFileManager.writeToFile("PlayIjk.readConfig", "方式1读取失败: ${e.message}")
+                // 方式2: 直接读取整个文件内容
+                try {
+                    val content = file.readText(Charsets.UTF_8).trim().removePrefix("\uFEFF")
+                    urlStr = content.lines().firstOrNull { it.trim().isNotEmpty() }?.trim() ?: ""
+                    LogFileManager.writeToFile("PlayIjk.readConfig", "方式2读取结果: URL='$urlStr', 长度=${urlStr.length}")
+                } catch (e2: Exception) {
+                    LogFileManager.writeToFile("PlayIjk.readConfig", "方式2读取也失败: ${e2.message}")
+                    LogFileManager.writeException("PlayIjk.readConfig", e2)
+                }
+            }
+            
+            LogFileManager.writeToFile("PlayIjk.readConfig", "最终读取结果: URL='$urlStr', isBlank=${urlStr.isBlank()}, isEmpty=${urlStr.isEmpty()}, length=${urlStr.length}")
+            xLog("readConfig: 最终读取结果: URL='$urlStr', 长度=${urlStr.length}")
+            
+            // 验证URL格式（简单检查是否包含协议）
+            if (urlStr.isNotEmpty()) {
+                val lowerUrl = urlStr.lowercase()
+                // 检查是否是有效的URL格式（http://, https://, rtmp://, rtsp://等）
+                if (lowerUrl.startsWith("http://") || lowerUrl.startsWith("https://") || 
+                    lowerUrl.startsWith("rtmp://") || lowerUrl.startsWith("rtsp://") ||
+                    lowerUrl.startsWith("rtp://") || lowerUrl.startsWith("udp://")) {
+                    LogFileManager.writeToFile("PlayIjk.readConfig", "检测到有效的网络URL: $urlStr")
+                    xLog("readConfig: 检测到有效的网络URL: $urlStr")
+                    return urlStr
                 } else {
-                    LogFileManager.writeToFile("PlayIjk.readConfig", "文件内容为空或只有空白字符，文件大小=$length")
-                    xLog("readConfig: 文件内容为空或只有空白字符，文件大小=$length")
+                    LogFileManager.writeToFile("PlayIjk.readConfig", "URL格式可能无效，但返回尝试: $urlStr")
+                    xLog("readConfig: URL格式可能无效，但返回尝试: $urlStr")
+                    // 即使格式可能无效，也返回，让播放器尝试
+                    return urlStr
                 }
             } else {
-                val reason = when {
-                    !exists -> "文件不存在"
-                    !canRead -> "文件不可读"
-                    length == 0L -> "文件大小为0"
-                    else -> "未知原因"
-                }
-                LogFileManager.writeToFile("PlayIjk.readConfig", "$reason: $absolutePath")
-                if (!exists) {
-                    xLog("readConfig: 文件不存在: $absolutePath")
-                } else if (!canRead) {
-                    xLog("readConfig: 文件不可读: $absolutePath")
-                } else if (length == 0L) {
-                    xLog("readConfig: 文件大小为0: $absolutePath")
-                }
+                LogFileManager.writeToFile("PlayIjk.readConfig", "文件内容为空或只有空白字符，文件大小=$length")
+                xLog("readConfig: 文件内容为空或只有空白字符，文件大小=$length")
             }
         } catch (e: Exception) {
             LogFileManager.writeException("PlayIjk.readConfig", e)
