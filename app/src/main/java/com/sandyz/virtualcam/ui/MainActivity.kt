@@ -210,11 +210,21 @@ class MainActivity : AppCompatActivity() {
             val file = File(dirPath + fileName)
             
             // 使用UTF-8编码保存，确保与读取一致
-            val contentBytes = content.toByteArray(Charsets.UTF_8)
+            // 确保内容末尾没有换行符
+            val cleanContent = content.trim()
+            val contentBytes = cleanContent.toByteArray(Charsets.UTF_8)
             val fos = FileOutputStream(file)
             fos.write(contentBytes)
             fos.flush()
             fos.close()
+            
+            // 设置文件权限，确保可读
+            try {
+                file.setReadable(true, false) // 对所有用户可读
+                file.setWritable(true, false)  // 对所有用户可写
+            } catch (e: Exception) {
+                Log.w(TAG, "saveConfig: 设置文件权限失败: ${e.message}")
+            }
             
             // 验证文件是否保存成功
             if (file.exists() && file.length() > 0) {
