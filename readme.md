@@ -159,14 +159,6 @@ MediaMTX 是一个轻量级的流媒体服务器，用于中转直播信号。
 
 ---
 
-## 4. 完整链路图示
-
-```mermaid
-graph LR
-    A[main.py (PC)] --RTMP Push--> B[MediaMTX (PC :1935)]
-    B --局域网 WiFi--> C[XVirtualCamera (手机)]
-    C --Hook 替换--> D[抖音/快手 (手机)]
-```
 
 ### 关键注意事项
 1.  **防火墙**: 确保电脑防火墙允许 `mediamtx.exe` 通过，或者允许 **1935** 端口的入站连接，否则手机无法连接。
