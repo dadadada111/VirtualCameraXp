@@ -80,6 +80,7 @@ class HookMain : IXposedHookLoadPackage, IXposedHookZygoteInit, IXposedHookInitP
         VirtualCameraDy(),
         VirtualCameraPdd(),
         VirtualCameraWs(),
+        Camera2Spoof(),
     )
 
 
