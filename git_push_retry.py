@@ -184,8 +184,24 @@ def git_push_retry():
             else:
                 print(f"[{datetime.datetime.now()}] ❌ 推送失败 (Exit Code: {result.returncode})")
                 
-                # 检查是否是网络连接问题
                 error_output = result.stderr.lower() if result.stderr else ""
+
+                # 检查是否需要拉取代码 (fetch first)
+                if "fetch first" in error_output or "rejected" in error_output or "contains work that you do not have locally" in error_output:
+                    print(f"\n[{datetime.datetime.now()}] ⚠️ 检测到远程仓库有更新，尝试自动拉取(Rebase)...")
+                    pull_result = run_command(
+                        ["git", "pull", "origin", current_branch, "--rebase"],
+                        check=False
+                    )
+                    if pull_result.returncode == 0:
+                        print(f"[{datetime.datetime.now()}] ✅ 拉取成功，将立即重试推送...")
+                        time.sleep(1) # 稍作等待
+                        continue
+                    else:
+                        print(f"[{datetime.datetime.now()}] ❌ 自动拉取失败，可能存在冲突，请手动解决。")
+                        return False
+
+                # 检查是否是网络连接问题
                 if "connection" in error_output or "connect" in error_output or "timeout" in error_output:
                     if not proxy:
                         print("⚠️  检测到网络连接问题，建议配置代理")
