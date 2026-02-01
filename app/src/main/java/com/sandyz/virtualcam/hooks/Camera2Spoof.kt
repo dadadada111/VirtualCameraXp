@@ -15,6 +15,7 @@ import java.util.Random
 /**
  * 系统层相机特征伪装 (System Camera Spoof)
  * 模拟真实摄像头的硬件特征和动态元数据，防止被识别为虚拟摄像头
+ * Updated: 2026-02-01 (Force Rebuild)
  */
 class Camera2Spoof : IHook {
     override fun getName(): String = "系统层相机特征伪装 (System Camera Spoof)"
