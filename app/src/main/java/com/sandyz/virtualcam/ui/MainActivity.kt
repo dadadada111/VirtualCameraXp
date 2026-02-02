@@ -10,6 +10,7 @@ import android.os.Environment
 import android.provider.Settings
 import android.widget.Button
 import android.widget.EditText
+import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -543,9 +544,39 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun saveAudioConfig() {
+        val volume = sbVolume.progress / 100.0f
+        LogFileManager.writeToFile(TAG, "Saving audio volume: $volume")
+        try {
+            val file = File(publicDir + "mic_volume.txt")
+            file.writeText(volume.toString())
+            updateStatus("音频配置已保存: ${(volume * 100).toInt()}%")
+        } catch (e: Exception) {
+            updateStatus("保存失败: ${e.message}")
+            Log.e(TAG, "Failed to save audio config", e)
+        }
+    }
+
+    private fun loadAudioConfig() {
+        try {
+            val file = File(publicDir + "mic_volume.txt")
+            if (file.exists()) {
+                val content = file.readText().trim()
+                val volume = content.toFloatOrNull() ?: 1.0f
+                val progress = (volume * 100).toInt()
+                sbVolume.progress = progress
+                tvVolumeLabel.text = "麦克风音量: $progress%"
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load audio config", e)
+        }
+    }
+
     private fun loadConfigs() {
         // Load global config
         loadGlobalConfig()
+        // Load audio config
+        loadAudioConfig()
         // Load app configs (we'll load the last saved one if any)
         loadLastAppConfig()
     }
