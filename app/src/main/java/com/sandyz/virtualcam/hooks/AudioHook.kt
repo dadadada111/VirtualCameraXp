@@ -164,73 +164,51 @@ class AudioHook : IHook {
             try {
                 val appOpsHook = object : XC_MethodHook() {
                     override fun beforeHookedMethod(param: MethodHookParam) {
+                        // Always update config first
                         updateVolumeConfig()
-                        if (volume == 0.0f) {
-                            val op = param.args[0] as? Int ?: return
-                            // OP_RECORD_AUDIO = 27
-                            if (op == 27) {
+                        
+                        val methodName = param.method.name
+                        val args = param.args
+                        
+                        // Determine op code (int or String)
+                        var opInt = -1
+                        var opStr: String? = null
+                        
+                        if (args.isNotEmpty()) {
+                            if (args[0] is Int) {
+                                opInt = args[0] as Int
+                            } else if (args[0] is String) {
+                                opStr = args[0] as String
+                            }
+                        }
+                        
+                        // Check if it's audio related
+                        // OP_RECORD_AUDIO = 27
+                        // OPSTR_RECORD_AUDIO = "android:record_audio"
+                        val isAudioOp = (opInt == 27) || (opStr == "android:record_audio")
+                        
+                        if (isAudioOp) {
+                            xLog("AudioHook: AppOpsManager.$methodName called for AUDIO. Volume=$volume")
+                            if (volume == 0.0f) {
                                 xLog("AudioHook: Blocking OP_RECORD_AUDIO (Native Mute)")
                                 param.result = AppOpsManager.MODE_IGNORED
                             }
                         }
                     }
                 }
-                
-                val appOpsStringHook = object : XC_MethodHook() {
-                    override fun beforeHookedMethod(param: MethodHookParam) {
-                        updateVolumeConfig()
-                        if (volume == 0.0f) {
-                            val op = param.args[0] as? String ?: return
-                            // OPSTR_RECORD_AUDIO = "android:record_audio"
-                            if (op == "android:record_audio") {
-                                xLog("AudioHook: Blocking OPSTR_RECORD_AUDIO (Native Mute)")
-                                param.result = AppOpsManager.MODE_IGNORED
-                            }
-                        }
-                    }
-                }
 
-                // Hook startOp(int, int, String)
-                XposedHelpers.findAndHookMethod(
-                    AppOpsManager::class.java,
-                    "startOp",
-                    Int::class.java,
-                    Int::class.java,
-                    String::class.java,
-                    appOpsHook
-                )
+                // Hook ALL overloads of startOp, noteOp, startOpNoThrow, noteOpNoThrow
+                val methodsToHook = listOf("startOp", "noteOp", "startOpNoThrow", "noteOpNoThrow")
                 
-                // Hook noteOp(int, int, String)
-                XposedHelpers.findAndHookMethod(
-                    AppOpsManager::class.java,
-                    "noteOp",
-                    Int::class.java,
-                    Int::class.java,
-                    String::class.java,
-                    appOpsHook
-                )
-                
-                // Hook startOp(String, int, String)
-                XposedHelpers.findAndHookMethod(
-                    AppOpsManager::class.java,
-                    "startOp",
-                    String::class.java,
-                    Int::class.java,
-                    String::class.java,
-                    appOpsStringHook
-                )
-                
-                // Hook noteOp(String, int, String)
-                XposedHelpers.findAndHookMethod(
-                    AppOpsManager::class.java,
-                    "noteOp",
-                    String::class.java,
-                    Int::class.java,
-                    String::class.java,
-                    appOpsStringHook
-                )
+                methodsToHook.forEach { methodName ->
+                    XposedBridge.hookAllMethods(
+                        AppOpsManager::class.java,
+                        methodName,
+                        appOpsHook
+                    )
+                }
                  
-                xLog("AudioHook: AppOpsManager hooks installed")
+                xLog("AudioHook: AppOpsManager hooks installed (All methods)")
 
             } catch (e: Throwable) {
                 xLog("AudioHook: Failed to hook AppOpsManager: ${e.message}")
