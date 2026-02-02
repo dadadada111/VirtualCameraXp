@@ -2,7 +2,6 @@ package com.sandyz.virtualcam.ui
 
 import android.Manifest
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -10,7 +9,6 @@ import android.os.Environment
 import android.provider.Settings
 import android.widget.Button
 import android.widget.EditText
-import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -37,8 +35,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var etAppUrl: EditText
     private lateinit var tvAppVideoPath: TextView
     private lateinit var tvStatus: TextView
-    private lateinit var tvVolumeLabel: TextView
-    private lateinit var sbVolume: SeekBar
 
     private var selectedGlobalUri: Uri? = null
     private var selectedAppUri: Uri? = null
@@ -102,20 +98,6 @@ class MainActivity : AppCompatActivity() {
 
         findViewById<Button>(R.id.btn_app_select_video).setOnClickListener {
             pickAppVideoLauncher.launch("video/*")
-        }
-
-        tvVolumeLabel = findViewById(R.id.tv_volume_label)
-        sbVolume = findViewById(R.id.sb_volume)
-        sbVolume.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                tvVolumeLabel.text = "麦克风音量: $progress%"
-            }
-            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-        })
-
-        findViewById<Button>(R.id.btn_save_audio).setOnClickListener {
-            saveAudioConfig()
         }
 
         findViewById<Button>(R.id.btn_global_save).setOnClickListener {
@@ -560,41 +542,9 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun saveAudioConfig() {
-        val volume = sbVolume.progress / 100.0f
-        LogFileManager.writeToFile(TAG, "Saving audio volume: $volume")
-        try {
-            val file = File(publicDir + "mic_volume.txt")
-            file.writeText(volume.toString())
-            // Try to make it readable by everyone (best effort for legacy storage)
-            file.setReadable(true, false)
-            updateStatus("音频配置已保存: ${(volume * 100).toInt()}%")
-        } catch (e: Exception) {
-            updateStatus("保存失败: ${e.message}")
-            Log.e(TAG, "Failed to save audio config", e)
-        }
-    }
-
-    private fun loadAudioConfig() {
-        try {
-            val file = File(publicDir + "mic_volume.txt")
-            if (file.exists()) {
-                val content = file.readText().trim()
-                val volume = content.toFloatOrNull() ?: 1.0f
-                val progress = (volume * 100).toInt()
-                sbVolume.progress = progress
-                tvVolumeLabel.text = "麦克风音量: $progress%"
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to load audio config", e)
-        }
-    }
-
     private fun loadConfigs() {
         // Load global config
         loadGlobalConfig()
-        // Load audio config
-        loadAudioConfig()
         // Load app configs (we'll load the last saved one if any)
         loadLastAppConfig()
     }

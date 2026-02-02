@@ -83,50 +83,6 @@
             android:layout_marginTop="20dp"
             android:layout_marginBottom="20dp"/>
 
-        <!-- 音频配置区域 -->
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="音频配置 (Audio Config)"
-            android:textSize="18sp"
-            android:textStyle="bold"/>
-
-        <TextView
-            android:id="@+id/tv_volume_label"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="麦克风音量: 100%"
-            android:layout_marginTop="8dp"/>
-
-        <SeekBar
-            android:id="@+id/sb_volume"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:max="100"
-            android:progress="100"
-            android:layout_marginTop="4dp"
-            android:layout_marginBottom="8dp"/>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="end">
-
-            <Button
-                android:id="@+id/btn_save_audio"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="保存音频配置"/>
-        </LinearLayout>
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#CCCCCC"
-            android:layout_marginTop="20dp"
-            android:layout_marginBottom="20dp"/>
-
         <!-- 特定应用配置区域 -->
         <TextView
             android:layout_width="match_parent"
