@@ -155,7 +155,6 @@ class AudioHook : IHook {
                     }
                 })
             } catch (e: Throwable) {
-            } catch (e: Throwable) {
                 xLog("AudioHook: Failed to hook MediaRecorder: ${e.message}")
             }
 
@@ -233,9 +232,6 @@ class AudioHook : IHook {
 
             } catch (e: Throwable) {
                 xLog("AudioHook: Failed to hook AppOpsManager: ${e.message}")
-            }
-
-                xLog("AudioHook: Failed to hook MediaRecorder: ${e.message}")
             }
 
             // Hook AudioRecord.read(byte[], int, int)
