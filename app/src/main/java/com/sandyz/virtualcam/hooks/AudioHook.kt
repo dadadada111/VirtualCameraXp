@@ -105,48 +105,35 @@ class AudioHook : IHook {
         if (readSize <= 0) return
         if (volume == 1.0f) return
         
+        // AudioRecord updates position. We need to process the data just written.
+        // Assuming position is at the end of written data.
+        val currentPos = buffer.position()
+        val startPos = currentPos - readSize
+        
+        if (startPos < 0) return
+
         if (volume == 0.0f) {
-            // Mute
-            val pos = buffer.position()
-            // We need to write zeros to the part that was just read.
-            // But 'read' method usually fills buffer from current position?
-            // Wait, read(ByteBuffer) fills it.
-            // If it's a direct buffer, we might need manual access.
-            // Easier to just iterate.
-            
-            // Actually, for ByteBuffer, read(buffer, size) reads 'size' bytes into buffer.
-            // We assume the caller will read from the buffer's current position?
-            // No, AudioRecord.read(ByteBuffer, size) puts data into the buffer.
-            // We need to process the data that was just written.
-            // Typically AudioRecord writes to buffer starting at current position?
-            // No, standard read(ByteBuffer) writes into the buffer.
-            
-            // Let's assume we can access the underlying array if it has one.
-            if (buffer.hasArray()) {
-                val array = buffer.array()
-                val offset = buffer.arrayOffset() // + position?
-                // The doc says: "Reads audio data from the audio hardware for recording into a buffer."
-                // It fills the buffer.
-                // We'll iterate the buffer.
-                // But since we are in 'afterHookedMethod', the data is already in the buffer.
-                // We just need to iterate 0 to readSize (if relative write) or specific range.
-                // AudioRecord.read(ByteBuffer) behaves like a stream read.
-                // It likely updated the position?
-                // Actually, let's look at the implementation. 
-                // Usually hooking read(byte[]) is enough for most apps (Douyin uses native or byte[] usually).
-                // ByteBuffer hook is safer to add.
-            }
-            // For direct buffers, we have to use get/put.
-            // Simpler implementation for now:
-            // Just iterate and modify.
+             for (i in startPos until currentPos) {
+                 buffer.put(i, 0)
+             }
+             return
         }
-        
-        // Since ByteBuffer manipulation is complex with positions/limits, and most apps use byte[],
-        // I will implement a safe basic version.
-        // But Douyin might use AudioRecord.read(byte[], ...) predominantly.
-        
-        // Let's skip ByteBuffer deep implementation for now unless verified it's needed.
-        // Hooking byte[] is the critical one.
+
+        for (i in startPos until currentPos step 2) {
+            if (i + 1 < currentPos) {
+                val low = buffer.get(i).toInt() and 0xFF
+                val high = buffer.get(i + 1).toInt().toShort()
+                var sample = (high.toInt() shl 8) or low
+                
+                sample = (sample * volume).toInt()
+                
+                if (sample > 32767) sample = 32767
+                if (sample < -32768) sample = -32768
+                
+                buffer.put(i, (sample and 0xFF).toByte())
+                buffer.put(i + 1, ((sample shr 8) and 0xFF).toByte())
+            }
+        }
     }
 
     override fun hook(lpparam: LoadPackageParam?) {
@@ -169,26 +156,14 @@ class AudioHook : IHook {
                         val result = param.result as Int
                         if (result > 0) {
                             val data = param.args[0] as ByteArray
-                            // val offset = param.args[1] as Int // usually 0
-                            // process from offset? 
-                            // The method signature is read(byte[] audioData, int offsetInBytes, int sizeInBytes)
-                            // We should respect offset.
                             val offset = param.args[1] as Int
-                            // But wait, the data we want to modify is the one written to the array.
-                            // The method reads *into* the array starting at offset.
-                            // So we process from offset to offset + result.
-                            
                             processAudioDataWithOffset(data, offset, result)
                         }
                     }
                 }
             )
             
-            // Also hook the overload read(byte[], int, int, int) added in API 23?
-            // Actually AudioRecord has:
-            // read(byte[] audioData, int offsetInBytes, int sizeInBytes)
-            // read(byte[] audioData, int offsetInBytes, int sizeInBytes, int readMode)
-            
+            // Hook AudioRecord.read(byte[], int, int, int)
              XposedHelpers.findAndHookMethod(
                 AudioRecord::class.java,
                 "read",
@@ -207,6 +182,49 @@ class AudioHook : IHook {
                             val data = param.args[0] as ByteArray
                             val offset = param.args[1] as Int
                             processAudioDataWithOffset(data, offset, result)
+                        }
+                    }
+                }
+            )
+
+            // Hook AudioRecord.read(ByteBuffer, int)
+            XposedHelpers.findAndHookMethod(
+                AudioRecord::class.java,
+                "read",
+                ByteBuffer::class.java,
+                Int::class.java,
+                object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        updateVolumeConfig()
+                    }
+
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        val result = param.result as Int
+                        if (result > 0) {
+                            val buffer = param.args[0] as ByteBuffer
+                            processAudioBuffer(buffer, result)
+                        }
+                    }
+                }
+            )
+            
+             // Hook AudioRecord.read(ByteBuffer, int, int)
+            XposedHelpers.findAndHookMethod(
+                AudioRecord::class.java,
+                "read",
+                ByteBuffer::class.java,
+                Int::class.java,
+                Int::class.java,
+                object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        updateVolumeConfig()
+                    }
+
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        val result = param.result as Int
+                        if (result > 0) {
+                            val buffer = param.args[0] as ByteBuffer
+                            processAudioBuffer(buffer, result)
                         }
                     }
                 }
