@@ -13,6 +13,8 @@ import java.nio.ByteBuffer
 import android.app.AppOpsManager
 import android.content.Context
 
+import android.media.MediaRecorder
+
 class AudioHook : IHook {
 
     override fun getName(): String = "麦克风音量控制 (Microphone Volume Control)"
