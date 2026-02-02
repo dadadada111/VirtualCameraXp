@@ -37,6 +37,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var etAppUrl: EditText
     private lateinit var tvAppVideoPath: TextView
     private lateinit var tvStatus: TextView
+    private lateinit var tvVolumeLabel: TextView
+    private lateinit var sbVolume: SeekBar
 
     private var selectedGlobalUri: Uri? = null
     private var selectedAppUri: Uri? = null
