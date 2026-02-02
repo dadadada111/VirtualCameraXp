@@ -145,6 +145,15 @@ class AudioHook : IHook {
                                 } catch (e: Exception) {
                                     xLog("AudioHook: Failed to set microphone mute: ${e.message}")
                                 }
+                            } else {
+                                try {
+                                    if (audioManager.isMicrophoneMute) {
+                                        xLog("AudioHook: Force un-muting microphone (AudioManager)")
+                                        audioManager.isMicrophoneMute = false
+                                    }
+                                } catch (e: Exception) {
+                                    xLog("AudioHook: Failed to unmute microphone: ${e.message}")
+                                }
                             }
                         }
                     }
