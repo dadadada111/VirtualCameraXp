@@ -138,18 +138,20 @@ class AudioHook : IHook {
                             updateVolumeConfig()
                             if (volume == 0.0f) {
                                 try {
-                                    if (!audioManager.isMicrophoneMute) {
+                                    val isMute = param.result.javaClass.getMethod("isMicrophoneMute").invoke(param.result) as Boolean
+                                    if (!isMute) {
                                         xLog("AudioHook: Force setting microphone mute (AudioManager)")
-                                        audioManager.isMicrophoneMute = true
+                                        param.result.javaClass.getMethod("setMicrophoneMute", Boolean::class.javaPrimitiveType).invoke(param.result, true)
                                     }
                                 } catch (e: Exception) {
                                     xLog("AudioHook: Failed to set microphone mute: ${e.message}")
                                 }
                             } else {
                                 try {
-                                    if (audioManager.isMicrophoneMute) {
+                                    val isMute = param.result.javaClass.getMethod("isMicrophoneMute").invoke(param.result) as Boolean
+                                    if (isMute) {
                                         xLog("AudioHook: Force un-muting microphone (AudioManager)")
-                                        audioManager.isMicrophoneMute = false
+                                        param.result.javaClass.getMethod("setMicrophoneMute", Boolean::class.javaPrimitiveType).invoke(param.result, false)
                                     }
                                 } catch (e: Exception) {
                                     xLog("AudioHook: Failed to unmute microphone: ${e.message}")
