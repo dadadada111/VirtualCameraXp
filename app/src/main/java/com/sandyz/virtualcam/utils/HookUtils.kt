@@ -232,6 +232,13 @@ object LogFileManager {
             if (!logFile.exists()) {
                 logFile.parentFile?.mkdirs()
                 logFile.createNewFile()
+                // 设置为所有人可读写，以便不同UID的进程都能写入日志
+                logFile.setReadable(true, false)
+                logFile.setWritable(true, false)
+            } else {
+                // 确保已有文件的权限也是开放的
+                logFile.setReadable(true, false)
+                logFile.setWritable(true, false)
             }
             
             return logFile

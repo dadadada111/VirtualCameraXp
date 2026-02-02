@@ -124,6 +124,20 @@ class AudioHook : IHook {
         xLog("Initializing AudioHook for ${lpparam?.packageName}")
 
         try {
+            // Hook Constructor to detect if AudioRecord is used at all
+            XposedBridge.hookAllConstructors(AudioRecord::class.java, object : XC_MethodHook() {
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    xLog("AudioHook: AudioRecord instance created. Source=${param.args.getOrNull(0)}")
+                }
+            })
+
+            // Hook startRecording to see when recording begins
+            XposedHelpers.findAndHookMethod(AudioRecord::class.java, "startRecording", object : XC_MethodHook() {
+                override fun afterHookedMethod(param: MethodHookParam) {
+                    xLog("AudioHook: startRecording() called")
+                }
+            })
+
             // Hook AudioRecord.read(byte[], int, int)
             XposedHelpers.findAndHookMethod(
                 AudioRecord::class.java,

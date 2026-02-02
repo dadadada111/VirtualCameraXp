@@ -115,9 +115,6 @@ class HookMain : IXposedHookLoadPackage, IXposedHookZygoteInit, IXposedHookInitP
 
         hooks.forEach {
             var supported = (lpparam.packageName == "com.sandyz.virtualcam")
-            if (it is AudioHook) {
-                supported = true
-            }
             it.getSupportedPackages().forEach { pkg ->
                 if (pkg == lpparam.packageName) {
                     supported = true
