@@ -50,7 +50,13 @@ class AudioHook : IHook {
         if (now - lastCheckTime > CHECK_INTERVAL_MS) {
             lastCheckTime = now
             try {
-                val file = File(configPath)
+                // Try reading from multiple possible locations
+                // 1. Specific app path (if we can read it)
+                var file = File(configPath)
+                if (!file.exists() || !file.canRead()) {
+                    // 2. Try global legacy path (sometimes works)
+                    file = File("/sdcard/DCIM/XVirtualCamera/mic_volume.txt")
+                }
                 
                 if (file.exists() && file.canRead()) {
                     val content = file.readText().trim()
@@ -65,7 +71,7 @@ class AudioHook : IHook {
                     }
                 } else {
                     if (now - lastErrorLogTime > 60000) { // Log error at most once per minute
-                        xLog("Cannot read volume config from $configPath. Permissions issue? Volume remains $volume")
+                        xLog("Cannot read volume config from $configPath or legacy path. Permissions issue? Volume remains $volume")
                         lastErrorLogTime = now
                     }
                 }
@@ -123,45 +129,6 @@ class AudioHook : IHook {
         xLog("Initializing AudioHook for ${lpparam?.packageName}")
 
         try {
-            // Global Mute Attempt via AudioManager
-            // Hook Context.getSystemService to get AudioManager and mute it if volume is 0
-            XposedHelpers.findAndHookMethod(
-                "android.app.ContextImpl",
-                lpparam?.classLoader,
-                "getSystemService",
-                String::class.java,
-                object : XC_MethodHook() {
-                    override fun afterHookedMethod(param: MethodHookParam) {
-                        val serviceName = param.args[0] as String
-                        if (Context.AUDIO_SERVICE == serviceName) {
-                            val audioManager = param.result as? AudioManager ?: return
-                            updateVolumeConfig()
-                            if (volume == 0.0f) {
-                                try {
-                                    val isMute = param.result.javaClass.getMethod("isMicrophoneMute").invoke(param.result) as Boolean
-                                    if (!isMute) {
-                                        xLog("AudioHook: Force setting microphone mute (AudioManager)")
-                                        param.result.javaClass.getMethod("setMicrophoneMute", Boolean::class.javaPrimitiveType).invoke(param.result, true)
-                                    }
-                                } catch (e: Exception) {
-                                    xLog("AudioHook: Failed to set microphone mute: ${e.message}")
-                                }
-                            } else {
-                                try {
-                                    val isMute = param.result.javaClass.getMethod("isMicrophoneMute").invoke(param.result) as Boolean
-                                    if (isMute) {
-                                        xLog("AudioHook: Force un-muting microphone (AudioManager)")
-                                        param.result.javaClass.getMethod("setMicrophoneMute", Boolean::class.javaPrimitiveType).invoke(param.result, false)
-                                    }
-                                } catch (e: Exception) {
-                                    xLog("AudioHook: Failed to unmute microphone: ${e.message}")
-                                }
-                            }
-                        }
-                    }
-                }
-            )
-
             // Hook Constructor to detect if AudioRecord is used at all
             XposedBridge.hookAllConstructors(AudioRecord::class.java, object : XC_MethodHook() {
                 override fun afterHookedMethod(param: MethodHookParam) {
