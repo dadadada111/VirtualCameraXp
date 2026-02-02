@@ -102,6 +102,34 @@ class MainActivity : AppCompatActivity() {
             pickAppVideoLauncher.launch("video/*")
         }
 
+        tvVolumeLabel = findViewById(R.id.tv_volume_label)
+        sbVolume = findViewById(R.id.sb_volume)
+        sbVolume.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                tvVolumeLabel.text = "麦克风音量: $progress%"
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
+        findViewById<Button>(R.id.btn_save_audio).setOnClickListener {
+            saveAudioConfig()
+        }
+
+        tvVolumeLabel = findViewById(R.id.tv_volume_label)
+        sbVolume = findViewById(R.id.sb_volume)
+        sbVolume.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                tvVolumeLabel.text = "麦克风音量: $progress%"
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+
+        findViewById<Button>(R.id.btn_save_audio).setOnClickListener {
+            saveAudioConfig()
+        }
+
         findViewById<Button>(R.id.btn_global_save).setOnClickListener {
             saveGlobalConfig()
         }
