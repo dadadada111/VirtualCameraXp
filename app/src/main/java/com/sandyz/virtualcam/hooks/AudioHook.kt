@@ -37,13 +37,22 @@ class AudioHook : IHook {
     private var lastCheckTime: Long = 0
     private val CHECK_INTERVAL_MS = 2000L // Check config every 2 seconds
     private val configPath = "/sdcard/DCIM/XVirtualCamera/mic_volume.txt"
+    private var hasLoggedFirstPacket = false
+    private var lastErrorLogTime: Long = 0
 
     private fun updateVolumeConfig() {
         val now = System.currentTimeMillis()
         if (now - lastCheckTime > CHECK_INTERVAL_MS) {
             lastCheckTime = now
             try {
-                val file = File(configPath)
+                // Try reading from multiple possible locations
+                // 1. Specific app path (if we can read it)
+                var file = File(configPath)
+                if (!file.exists() || !file.canRead()) {
+                    // 2. Try global legacy path (sometimes works)
+                    file = File("/sdcard/DCIM/XVirtualCamera/mic_volume.txt")
+                }
+                
                 if (file.exists() && file.canRead()) {
                     val content = file.readText().trim()
                     if (content.isNotEmpty()) {
@@ -52,57 +61,32 @@ class AudioHook : IHook {
                             if (volume != newVolume) {
                                 xLog("Microphone volume updated: $newVolume")
                             }
-                            volume = newVolume.coerceIn(0.0f, 10.0f) // Allow up to 10x gain? strict 0-1 for now based on request "not record external"
+                            volume = newVolume.coerceIn(0.0f, 10.0f)
                         }
                     }
                 } else {
-                     // Default to 1.0 if no config found, or keep last valid?
-                     // Keep last valid is safer to avoid sudden jumps if file is busy
+                    if (now - lastErrorLogTime > 60000) { // Log error at most once per minute
+                        xLog("Cannot read volume config from $configPath or legacy path. Permissions issue? Volume remains $volume")
+                        lastErrorLogTime = now
+                    }
                 }
             } catch (e: Exception) {
-                // Ignore read errors
+                if (now - lastErrorLogTime > 60000) {
+                    xLog("Error reading volume config: ${e.message}")
+                    lastErrorLogTime = now
+                }
             }
         }
     }
 
-    private fun processAudioData(data: ByteArray, readSize: Int) {
-        if (readSize <= 0) return
-        
-        // Optimize: skip processing if volume is 1.0
-        if (volume == 1.0f) return
-
-        if (volume == 0.0f) {
-            // Fast path for mute
-            java.util.Arrays.fill(data, 0, readSize, 0.toByte())
-            return
-        }
-
-        // PCM 16-bit processing
-        // Assuming AudioFormat.ENCODING_PCM_16BIT which is standard
-        // We iterate 2 bytes at a time
-        for (i in 0 until readSize step 2) {
-            if (i + 1 < readSize) {
-                // Little Endian
-                val low = data[i].toInt() and 0xFF
-                val high = data[i + 1].toInt().toShort()
-                var sample = (high.toInt() shl 8) or low
-                
-                // Apply volume
-                sample = (sample * volume).toInt()
-                
-                // Clamp
-                if (sample > 32767) sample = 32767
-                if (sample < -32768) sample = -32768
-                
-                // Write back
-                data[i] = (sample and 0xFF).toByte()
-                data[i + 1] = ((sample shr 8) and 0xFF).toByte()
-            }
-        }
-    }
-    
     private fun processAudioBuffer(buffer: ByteBuffer, readSize: Int) {
         if (readSize <= 0) return
+        
+        if (!hasLoggedFirstPacket) {
+            xLog("AudioHook: First audio buffer packet received. Size=$readSize, Volume=$volume")
+            hasLoggedFirstPacket = true
+        }
+
         if (volume == 1.0f) return
         
         // AudioRecord updates position. We need to process the data just written.
@@ -236,6 +220,11 @@ class AudioHook : IHook {
     }
     
     private fun processAudioDataWithOffset(data: ByteArray, offset: Int, readSize: Int) {
+         if (!hasLoggedFirstPacket) {
+             xLog("AudioHook: First audio array packet received. Size=$readSize, Volume=$volume")
+             hasLoggedFirstPacket = true
+         }
+         
          if (volume == 1.0f) return
 
         if (volume == 0.0f) {

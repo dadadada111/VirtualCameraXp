@@ -566,6 +566,8 @@ class MainActivity : AppCompatActivity() {
         try {
             val file = File(publicDir + "mic_volume.txt")
             file.writeText(volume.toString())
+            // Try to make it readable by everyone (best effort for legacy storage)
+            file.setReadable(true, false)
             updateStatus("音频配置已保存: ${(volume * 100).toInt()}%")
         } catch (e: Exception) {
             updateStatus("保存失败: ${e.message}")
