@@ -6,7 +6,6 @@ import android.app.Instrumentation
 import android.content.res.XModuleResources
 import android.content.res.XResources
 import com.sandyz.virtualcam.hooks.IHook
-import com.sandyz.virtualcam.hooks.AudioHook
 import com.sandyz.virtualcam.hooks.VirtualCameraBiliSmile
 import com.sandyz.virtualcam.hooks.VirtualCameraDy
 import com.sandyz.virtualcam.hooks.VirtualCameraPdd
@@ -83,7 +82,6 @@ class HookMain : IXposedHookLoadPackage, IXposedHookZygoteInit, IXposedHookInitP
         VirtualCameraPdd(),
         VirtualCameraWs(),
         Camera2Spoof(),
-        AudioHook(),
     )
 
 
