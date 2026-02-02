@@ -31,7 +31,7 @@ class AudioHook : IHook {
 
     override fun registerRes(moduleRes: XModuleResources?) {}
 
-    // Volatile to ensure visibility across threads
+    // Volatile to ensure visibility across threads    up
     @Volatile
     private var volume: Float = 1.0f
     private var lastCheckTime: Long = 0
