@@ -129,6 +129,34 @@ class AudioHook : IHook {
         xLog("Initializing AudioHook for ${lpparam?.packageName}")
 
         try {
+            // Global Mute Attempt via AudioManager
+            // Hook Context.getSystemService to get AudioManager and mute it if volume is 0
+            XposedHelpers.findAndHookMethod(
+                "android.app.ContextImpl",
+                lpparam?.classLoader,
+                "getSystemService",
+                String::class.java,
+                object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        val serviceName = param.args[0] as String
+                        if (Context.AUDIO_SERVICE == serviceName) {
+                            val audioManager = param.result as? AudioManager ?: return
+                            updateVolumeConfig()
+                            if (volume == 0.0f) {
+                                try {
+                                    if (!audioManager.isMicrophoneMute) {
+                                        xLog("AudioHook: Force setting microphone mute (AudioManager)")
+                                        audioManager.isMicrophoneMute = true
+                                    }
+                                } catch (e: Exception) {
+                                    xLog("AudioHook: Failed to set microphone mute: ${e.message}")
+                                }
+                            }
+                        }
+                    }
+                }
+            )
+
             // Hook Constructor to detect if AudioRecord is used at all
             XposedBridge.hookAllConstructors(AudioRecord::class.java, object : XC_MethodHook() {
                 override fun afterHookedMethod(param: MethodHookParam) {

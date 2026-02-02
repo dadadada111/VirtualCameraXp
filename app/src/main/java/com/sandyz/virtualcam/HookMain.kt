@@ -125,11 +125,17 @@ class HookMain : IXposedHookLoadPackage, IXposedHookZygoteInit, IXposedHookInitP
             } else {
                 xLog("init>>>>${it.getName()}>>>> package: ${lpparam.packageName} process: ${lpparam.processName}")
                 loadNative()
-                XposedHelpers.findAndHookMethod(Instrumentation::class.java, "callApplicationOnCreate", Application::class.java, object : XC_MethodHook() {
-                    override fun afterHookedMethod(param: MethodHookParam) {
-                        init(it, lpparam)
-                    }
-                })
+                
+                // AudioHook needs to be initialized immediately to catch early audio session creation
+                if (it is AudioHook) {
+                    init(it, lpparam)
+                } else {
+                    XposedHelpers.findAndHookMethod(Instrumentation::class.java, "callApplicationOnCreate", Application::class.java, object : XC_MethodHook() {
+                        override fun afterHookedMethod(param: MethodHookParam) {
+                            init(it, lpparam)
+                        }
+                    })
+                }
             }
         }
     }
