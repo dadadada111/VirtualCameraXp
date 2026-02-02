@@ -50,13 +50,7 @@ class AudioHook : IHook {
         if (now - lastCheckTime > CHECK_INTERVAL_MS) {
             lastCheckTime = now
             try {
-                // Try reading from multiple possible locations
-                // 1. Specific app path (if we can read it)
-                var file = File(configPath)
-                if (!file.exists() || !file.canRead()) {
-                    // 2. Try global legacy path (sometimes works)
-                    file = File("/sdcard/DCIM/XVirtualCamera/mic_volume.txt")
-                }
+                val file = File(configPath)
                 
                 if (file.exists() && file.canRead()) {
                     val content = file.readText().trim()
@@ -71,7 +65,7 @@ class AudioHook : IHook {
                     }
                 } else {
                     if (now - lastErrorLogTime > 60000) { // Log error at most once per minute
-                        xLog("Cannot read volume config from $configPath or legacy path. Permissions issue? Volume remains $volume")
+                        xLog("Cannot read volume config from $configPath. Permissions issue? Volume remains $volume")
                         lastErrorLogTime = now
                     }
                 }
