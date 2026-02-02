@@ -212,10 +212,7 @@ object LogFileManager {
                 }
             } catch (e: Exception) {
                 // 写入失败时只输出到XposedBridge，避免循环
-                try {
-                    XposedBridge.log("LogFileManager: Failed to write log: ${e.message}")
-                } catch (ignored: Exception) {
-                }
+                // 忽略权限错误，避免LSPosed日志刷屏
             }
         }
     }

@@ -10,6 +10,9 @@ import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam
 import java.io.File
 import java.nio.ByteBuffer
 
+import android.app.AppOpsManager
+import android.content.Context
+
 class AudioHook : IHook {
 
     override fun getName(): String = "麦克风音量控制 (Microphone Volume Control)"
@@ -137,6 +140,103 @@ class AudioHook : IHook {
                     xLog("AudioHook: startRecording() called")
                 }
             })
+
+            // Hook MediaRecorder to detect alternative recording methods
+            try {
+                XposedBridge.hookAllConstructors(MediaRecorder::class.java, object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        xLog("AudioHook: MediaRecorder instance created")
+                    }
+                })
+                
+                XposedHelpers.findAndHookMethod(MediaRecorder::class.java, "start", object : XC_MethodHook() {
+                    override fun afterHookedMethod(param: MethodHookParam) {
+                        xLog("AudioHook: MediaRecorder.start() called")
+                    }
+                })
+            } catch (e: Throwable) {
+            } catch (e: Throwable) {
+                xLog("AudioHook: Failed to hook MediaRecorder: ${e.message}")
+            }
+
+            // Hook AppOpsManager to mute native audio by denying permission
+            try {
+                val appOpsHook = object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        updateVolumeConfig()
+                        if (volume == 0.0f) {
+                            val op = param.args[0] as? Int ?: return
+                            // OP_RECORD_AUDIO = 27
+                            if (op == 27) {
+                                xLog("AudioHook: Blocking OP_RECORD_AUDIO (Native Mute)")
+                                param.result = AppOpsManager.MODE_IGNORED
+                            }
+                        }
+                    }
+                }
+                
+                val appOpsStringHook = object : XC_MethodHook() {
+                    override fun beforeHookedMethod(param: MethodHookParam) {
+                        updateVolumeConfig()
+                        if (volume == 0.0f) {
+                            val op = param.args[0] as? String ?: return
+                            // OPSTR_RECORD_AUDIO = "android:record_audio"
+                            if (op == "android:record_audio") {
+                                xLog("AudioHook: Blocking OPSTR_RECORD_AUDIO (Native Mute)")
+                                param.result = AppOpsManager.MODE_IGNORED
+                            }
+                        }
+                    }
+                }
+
+                // Hook startOp(int, int, String)
+                XposedHelpers.findAndHookMethod(
+                    AppOpsManager::class.java,
+                    "startOp",
+                    Int::class.java,
+                    Int::class.java,
+                    String::class.java,
+                    appOpsHook
+                )
+                
+                // Hook noteOp(int, int, String)
+                XposedHelpers.findAndHookMethod(
+                    AppOpsManager::class.java,
+                    "noteOp",
+                    Int::class.java,
+                    Int::class.java,
+                    String::class.java,
+                    appOpsHook
+                )
+                
+                // Hook startOp(String, int, String)
+                XposedHelpers.findAndHookMethod(
+                    AppOpsManager::class.java,
+                    "startOp",
+                    String::class.java,
+                    Int::class.java,
+                    String::class.java,
+                    appOpsStringHook
+                )
+                
+                // Hook noteOp(String, int, String)
+                XposedHelpers.findAndHookMethod(
+                    AppOpsManager::class.java,
+                    "noteOp",
+                    String::class.java,
+                    Int::class.java,
+                    String::class.java,
+                    appOpsStringHook
+                )
+                 
+                xLog("AudioHook: AppOpsManager hooks installed")
+
+            } catch (e: Throwable) {
+                xLog("AudioHook: Failed to hook AppOpsManager: ${e.message}")
+            }
+
+                xLog("AudioHook: Failed to hook MediaRecorder: ${e.message}")
+            }
 
             // Hook AudioRecord.read(byte[], int, int)
             XposedHelpers.findAndHookMethod(
